@@ -12,6 +12,8 @@
 #define PI 3.141592653589793
 using namespace std;
 
+#include <vtkm/Types.h>
+
 // I need two l
 // one for sending the plane
 // one for going through the cube
@@ -19,17 +21,17 @@ using namespace std;
 // k changes when sending the sheets beacuse we forget about a dention
 // 7 point stencil
 
-void gencore(int rank, double h, std::vector<double> &c)
+void gencore(int rank, vtkm::FloatDefault h, std::vector<vtkm::FloatDefault> &c)
 {
   for (std::size_t i = 0; i < c.size(); i++)
-    c[i] = double(i)*h;
+    c[i] = vtkm::FloatDefault(i)*h;
 }
 
 // I added r norm
-void evalF(int rank, double t, std::vector<double> &x, std::vector<double> &z, std::vector<double> &y, std::vector<double> &F)
+void evalF(int rank, vtkm::FloatDefault t, std::vector<vtkm::FloatDefault> &x, std::vector<vtkm::FloatDefault> &z, std::vector<vtkm::FloatDefault> &y, std::vector<vtkm::FloatDefault> &F)
 {
-    // double r_norm3 = pow(r_norm, 3);
-    // double r_norm5 = pow(r_norm, 5);
+    // vtkm::FloatDefault r_norm3 = pow(r_norm, 3);
+    // vtkm::FloatDefault r_norm5 = pow(r_norm, 5);
 
   for (int j = 0; j < y.size(); j++) //  j= row
   {
@@ -44,13 +46,13 @@ void evalF(int rank, double t, std::vector<double> &x, std::vector<double> &z, s
   }
 }
 
-void calcLapace(int rank, int size, int nx, int nz, int ny, double h, std::vector<double> &F, std::vector<double> &laplace)
+void calcLapace(int rank, int size, int nx, int nz, int ny, vtkm::FloatDefault h, std::vector<vtkm::FloatDefault> &F, std::vector<vtkm::FloatDefault> &laplace)
 {
     MPI_Status status;
     MPI_Request req_send_forward;
     MPI_Request req_send_backward;
-    std::vector<double> forward_neighbor(nx * nz);
-    std::vector<double> backward_neighbor(nx * nz);
+    std::vector<vtkm::FloatDefault> forward_neighbor(nx * nz);
+    std::vector<vtkm::FloatDefault> backward_neighbor(nx * nz);
     forward_neighbor.resize(nx * nz, 0);
     backward_neighbor.resize(nx * nz, 0);
     // ny = rows
@@ -80,20 +82,20 @@ void calcLapace(int rank, int size, int nx, int nz, int ny, double h, std::vecto
     if (rank == 0)
     {
 
-        MPI_Isend(forward_neighbor.data(), nx, MPI_DOUBLE, rank + 1, 0, MPI_COMM_WORLD, &req_send_forward);
-        MPI_Recv(forward_neighbor.data(), nx, MPI_DOUBLE, rank + 1, 0, MPI_COMM_WORLD, &status);
+        MPI_Isend(forward_neighbor.data(), nx, MPI_FLOAT, rank + 1, 0, MPI_COMM_WORLD, &req_send_forward);
+        MPI_Recv(forward_neighbor.data(), nx, MPI_FLOAT, rank + 1, 0, MPI_COMM_WORLD, &status);
     }
     else if (rank == size - 1)
     {
-        MPI_Isend(backward_neighbor.data(), nx, MPI_DOUBLE, rank - 1, 0, MPI_COMM_WORLD, &req_send_backward);
-        MPI_Recv(backward_neighbor.data(), nx, MPI_DOUBLE, rank - 1, 0, MPI_COMM_WORLD, &status);
+        MPI_Isend(backward_neighbor.data(), nx, MPI_FLOAT, rank - 1, 0, MPI_COMM_WORLD, &req_send_backward);
+        MPI_Recv(backward_neighbor.data(), nx, MPI_FLOAT, rank - 1, 0, MPI_COMM_WORLD, &status);
     }
     else
     {
-        MPI_Isend(backward_neighbor.data(), nx, MPI_DOUBLE, rank - 1, 0, MPI_COMM_WORLD, &req_send_backward);
-        MPI_Isend(forward_neighbor.data(), nx, MPI_DOUBLE, rank + 1, 0, MPI_COMM_WORLD, &req_send_forward);
-        MPI_Recv(backward_neighbor.data(), nx, MPI_DOUBLE, rank - 1, 0, MPI_COMM_WORLD, &status);
-        MPI_Recv(forward_neighbor.data(), nx, MPI_DOUBLE, rank + 1, 0, MPI_COMM_WORLD, &status);
+        MPI_Isend(backward_neighbor.data(), nx, MPI_FLOAT, rank - 1, 0, MPI_COMM_WORLD, &req_send_backward);
+        MPI_Isend(forward_neighbor.data(), nx, MPI_FLOAT, rank + 1, 0, MPI_COMM_WORLD, &req_send_forward);
+        MPI_Recv(backward_neighbor.data(), nx, MPI_FLOAT, rank - 1, 0, MPI_COMM_WORLD, &status);
+        MPI_Recv(forward_neighbor.data(), nx, MPI_FLOAT, rank + 1, 0, MPI_COMM_WORLD, &status);
     }
 
     //  in the stencil -6F[L]
@@ -297,29 +299,29 @@ int main(int argc, char *argv[])
   size_t lenz = atoi(argv[3]);
   size_t lenx = atoi(argv[4]);
   int tmax = atoi(argv[5]);
-  std::vector<double> x(lenx), z(leny), y(lenz);
+  std::vector<vtkm::FloatDefault> x(lenx), z(leny), y(lenz);
 
-  double h = 10.0 / (lenx - 1);
+  vtkm::FloatDefault h = 10.0 / (lenx - 1);
   // formula is why  L=i+nx*z+j*nx*nz
-  std::vector<double> F(lenx*leny*lenz, 0.0);
-  std::vector<double> laplace(lenx*leny*lenz, 0.0);
+  std::vector<vtkm::FloatDefault> F(lenx*leny*lenz, 0.0);
+  std::vector<vtkm::FloatDefault> laplace(lenx*leny*lenz, 0.0);
 
-  double mx = 1.0, my = 0.0, mz = 0.0; // Dipole moment along the x-axis
+  vtkm::FloatDefault mx = 1.0, my = 0.0, mz = 0.0; // Dipole moment along the x-axis
   // F   15X4
   adios2::IO bpIO = adios.DeclareIO("BPFile_N2N");
   adios2::Engine bpWriter = bpIO.Open(filename, adios2::Mode::Write);
-  adios2::Variable<double> xOut = bpIO.DefineVariable<double>(
+  adios2::Variable<vtkm::FloatDefault> xOut = bpIO.DefineVariable<vtkm::FloatDefault>(
     "x", {lenx}, {0}, {lenx}, adios2::ConstantDims);
-  adios2::Variable<double> zOut = bpIO.DefineVariable<double>(
+  adios2::Variable<vtkm::FloatDefault> zOut = bpIO.DefineVariable<vtkm::FloatDefault>(
     "z", {lenz}, {0}, {lenz}, adios2::ConstantDims);
-  adios2::Variable<double> yOut = bpIO.DefineVariable<double>(
+  adios2::Variable<vtkm::FloatDefault> yOut = bpIO.DefineVariable<vtkm::FloatDefault>(
     "y", {leny * size}, {rank * leny}, {leny}, adios2::ConstantDims);
-  adios2::Variable<double> fOut = bpIO.DefineVariable<double>(
+  adios2::Variable<vtkm::FloatDefault> fOut = bpIO.DefineVariable<vtkm::FloatDefault>(
     "F", {size * leny, lenz, lenx}, {rank * leny, 0, 0}, {leny, lenz, lenx}, adios2::ConstantDims);
-  // adios2::Variable<double> fOut = bpIO.DefineVariable<double>(
+  // adios2::Variable<vtkm::FloatDefault> fOut = bpIO.DefineVariable<vtkm::FloatDefault>(
   //     "F", {leny * lenx}, {rank * lenx}, {lenx}, adios2::ConstantDims);
   //  maybe fix this
-  adios2::Variable<double> lOut = bpIO.DefineVariable<double>(
+  adios2::Variable<vtkm::FloatDefault> lOut = bpIO.DefineVariable<vtkm::FloatDefault>(
     "Laplace", {size * leny, lenz, lenx}, {rank * leny, 0, 0}, {leny, lenz, lenx}, adios2::ConstantDims);
   // gencore fills in the values of the x, z, y array on each rank
   gencore(rank, h, x);
@@ -363,7 +365,7 @@ int main(int argc, char *argv[])
 
   for (int t = 1; t <= tmax; t++)
   {
-    double dt = double(t) / double(tmax);
+    vtkm::FloatDefault dt = vtkm::FloatDefault(t) / vtkm::FloatDefault(tmax);
     evalF(rank, t, x, z, y, F);
 
     if (size > 1)
