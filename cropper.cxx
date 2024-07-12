@@ -1,53 +1,10 @@
 #include <mpi.h>
 #include <string>
-#include <unordered_map>
 #include <vector>
 
-#include <fides/DataSetReader.h>
-#include <fides/DataSetWriter.h>
-
 #include "utils/CommandLineArgParser.h"
-
-static void
-DumpPartitions(const vtkm::cont::DataSet& pds, const std::string& outName)
-{
-  std::cout<<"Writing: "<<outName<<std::endl;
-  fides::io::DataSetWriter writer(outName);
-  writer.Write(pds, "BPFile");
-}
-
-static vtkm::cont::PartitionedDataSet
-ReadPartitions(const xenia::utils::CommandLineArgParser& args)
-{
-  vtkm::cont::PartitionedDataSet pds;
-  std::unordered_map<std::string, std::string> paths;
-
-  auto bpFile = args.GetArg("--file")[0];
-  paths["source"] = std::string(bpFile);
-  if (args.HasArg("--json"))
-  {
-    auto jsonFile = args.GetArg("--json")[0];
-    std::cout<<"Reading: w/ json "<<bpFile<<" "<<jsonFile<<std::endl;
-
-    fides::io::DataSetReader reader(jsonFile);
-    auto status = reader.PrepareNextStep(paths);
-    auto metaData = reader.ReadMetaData(paths);
-    pds = reader.ReadDataSet(paths, metaData);
-    std::cout<<"Read done"<<std::endl;
-  }
-  else
-  {
-    std::cout<<"Reading: w/ attrs "<<bpFile<<std::endl;
-    fides::io::DataSetReader reader(bpFile, fides::io::DataSetReader::DataModelInput::BPFile);
-    //auto status = reader.PrepareNextStep(paths);
-    auto metaData = reader.ReadMetaData(paths);
-
-    pds = reader.ReadDataSet(paths, metaData);
-    std::cout<<"Read done"<<std::endl;
-  }
-
-  return pds;
-}
+#include "utils/ReadData.h"
+#include "utils/WriteData.h"
 
 int main(int argc, char** argv)
 {
@@ -55,11 +12,11 @@ int main(int argc, char** argv)
 
   xenia::utils::CommandLineArgParser args(argc, argv, {"--file", "--output", "--index" });
 
-  auto data = ReadPartitions(args);
+  auto data = xenia::utils::ReadData(args);
   int index = std::stoi(args.GetArg("--index")[0]);
 
   if (index < data.GetNumberOfPartitions())
-    DumpPartitions(data.GetPartition(index), args.GetArg("--output")[0]);
+    xenia::utils::WriteData(data, args.GetArg("--output")[0]);
   else
     std::cerr<<"Error: index out of range."<<std::endl;
 

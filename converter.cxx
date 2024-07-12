@@ -2,59 +2,11 @@
 #include <string>
 #include <unordered_map>
 #include <vector>
-
-#include <fides/DataSetReader.h>
-#include <vtkm/io/VTKDataSetWriter.h>
-#include <vtkm/filter/entity_extraction/ExternalFaces.h>
+#include <regex>
 
 #include "utils/CommandLineArgParser.h"
-
-static void
-DumpPartitions(const vtkm::cont::PartitionedDataSet& pds, const std::string& outName)
-{
-  for (vtkm::Id i = 0; i < pds.GetNumberOfPartitions(); i++)
-  {
-    std::string fname = outName + std::to_string(i) + ".vtk";
-    vtkm::io::VTKDataSetWriter writer(fname);
-    writer.SetFileTypeToBinary();
-    writer.WriteDataSet(pds.GetPartition(i));
-  }
-}
-
-static vtkm::cont::PartitionedDataSet
-ReadPartitions(const xenia::utils::CommandLineArgParser& args)
-{
-  vtkm::cont::PartitionedDataSet pds;
-  std::unordered_map<std::string, std::string> paths;
-
-  auto bpFile = args.GetArg("--file")[0];
-  paths["source"] = std::string(bpFile);
-  if (args.HasArg("--json"))
-  {
-    auto jsonFile = args.GetArg("--json")[0];
-    std::cout<<"Reading: w/ json "<<bpFile<<" "<<jsonFile<<std::endl;
-
-    fides::io::DataSetReader reader(jsonFile);
-    auto metaData = reader.ReadMetaData(paths);
-    pds = reader.ReadDataSet(paths, metaData);
-    std::cout<<"Read done"<<std::endl;
-  }
-  else
-  {
-    std::cout<<"Reading: w/ attrs "<<bpFile<<std::endl;
-    fides::metadata::Vector<std::size_t> blockSelection;
-    blockSelection.Data.push_back(0);
-    fides::io::DataSetReader reader(bpFile, fides::io::DataSetReader::DataModelInput::BPFile);
-    //auto status = reader.PrepareNextStep(paths);
-    auto metaData = reader.ReadMetaData(paths);
-    //metaData.Set(fides::keys::BLOCK_SELECTION(), blockSelection);
-
-    pds = reader.ReadDataSet(paths, metaData);
-    std::cout<<"Read done"<<std::endl;
-  }
-
-  return pds;
-}
+#include "utils/ReadData.h"
+#include "utils/WriteData.h"
 
 int main(int argc, char** argv)
 {
@@ -62,9 +14,9 @@ int main(int argc, char** argv)
 
   xenia::utils::CommandLineArgParser args(argc, argv, {"--file", "--output"});
 
-  auto data = ReadPartitions(args);
+  auto data = xenia::utils::ReadData(args);
 
-  DumpPartitions(data, args.GetArg("--output")[0]);
+  xenia::utils::WriteData(data, args.GetArg("--output")[0]);
 
   MPI_Finalize();
   return 0;
