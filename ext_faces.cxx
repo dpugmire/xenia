@@ -4,21 +4,18 @@
 #include <vector>
 
 #include <fides/DataSetReader.h>
-#include <vtkm/io/VTKDataSetWriter.h>
+#include <fides/DataSetWriter.h>
 #include <vtkm/filter/entity_extraction/ExternalFaces.h>
+#include <vtkm/filter/clean_grid/CleanGrid.h>
 
 #include "utils/CommandLineArgParser.h"
 
 static void
 DumpPartitions(const vtkm::cont::PartitionedDataSet& pds, const std::string& outName)
 {
-  for (vtkm::Id i = 0; i < pds.GetNumberOfPartitions(); i++)
-  {
-    std::string fname = outName + std::to_string(i) + ".vtk";
-    vtkm::io::VTKDataSetWriter writer(fname);
-    writer.SetFileTypeToBinary();
-    writer.WriteDataSet(pds.GetPartition(i));
-  }
+  fides::io::DataSetWriter writer(outName);
+  //writer.SetWriteFields({"ALL"});
+  writer.Write(pds, "BPFile");
 }
 
 static vtkm::cont::PartitionedDataSet
@@ -31,13 +28,12 @@ ReadPartitions(const xenia::utils::CommandLineArgParser& args)
   paths["source"] = std::string(bpFile);
   if (args.HasArg("--json"))
   {
+    std::cout<<"Reading: w/ json "<<bpFile<<std::endl;
     auto jsonFile = args.GetArg("--json")[0];
-    std::cout<<"Reading: w/ json "<<bpFile<<" "<<jsonFile<<std::endl;
-
     fides::io::DataSetReader reader(jsonFile);
+
     auto metaData = reader.ReadMetaData(paths);
     pds = reader.ReadDataSet(paths, metaData);
-    std::cout<<"Read done"<<std::endl;
   }
   else
   {
@@ -50,10 +46,21 @@ ReadPartitions(const xenia::utils::CommandLineArgParser& args)
     //metaData.Set(fides::keys::BLOCK_SELECTION(), blockSelection);
 
     pds = reader.ReadDataSet(paths, metaData);
-    std::cout<<"Read done"<<std::endl;
   }
 
   return pds;
+}
+
+static vtkm::cont::PartitionedDataSet
+ExternalFaces(const vtkm::cont::PartitionedDataSet& inData)
+{
+  vtkm::filter::entity_extraction::ExternalFaces extFilter;
+  vtkm::filter::clean_grid::CleanGrid cleanFilter;
+
+  vtkm::filter::FieldSelection selection(vtkm::filter::FieldSelection::Mode::None);
+  extFilter.SetFieldsToPass(selection);
+  auto outData = extFilter.Execute(inData);
+  return cleanFilter.Execute(outData);
 }
 
 int main(int argc, char** argv)
@@ -63,6 +70,8 @@ int main(int argc, char** argv)
   xenia::utils::CommandLineArgParser args(argc, argv, {"--file", "--output"});
 
   auto data = ReadPartitions(args);
+  data = ExternalFaces(data);
+  data.PrintSummary(std::cout);
 
   DumpPartitions(data, args.GetArg("--output")[0]);
 

@@ -358,8 +358,8 @@ int main(int argc, char *argv[])
 </VTKFile>)";
 
 
-  bpIO.DefineAttribute<std::string>("vtk.xml", imageData);
-  bpIO.DefineAttribute<std::string>("meow", "meow meow ");
+//  bpIO.DefineAttribute<std::string>("vtk.xml", imageData);
+//  bpIO.DefineAttribute<std::string>("meow", "meow meow ");
 
   // evalF fills in the value of the two dimensional array F
 

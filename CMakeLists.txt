@@ -21,3 +21,12 @@ target_link_libraries(contour PRIVATE fides vtkm::io vtkm::filter_contour adios2
 
 add_executable(converter converter.cxx)
 target_link_libraries(converter PRIVATE fides vtkm::io vtkm::filter_contour adios2::adios2 MPI::MPI_CXX MPI::MPI_C)
+
+add_executable(ext_faces ext_faces.cxx)
+target_link_libraries(ext_faces PRIVATE fides vtkm::io vtkm::filter_contour vtkm::filter_entity_extraction  vtkm::filter_clean_grid adios2::adios2 MPI::MPI_CXX MPI::MPI_C)
+
+add_executable(noop noop.cxx)
+target_link_libraries(noop PRIVATE fides adios2::adios2 MPI::MPI_CXX MPI::MPI_C)
+
+add_executable(cropper cropper.cxx)
+target_link_libraries(cropper PRIVATE fides adios2::adios2 MPI::MPI_CXX MPI::MPI_C)

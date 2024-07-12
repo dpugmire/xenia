@@ -27,10 +27,14 @@ int main(int argc, char** argv)
 {
   MPI_Init(&argc, &argv);
 
-  xenia::utils::CommandLineArgParser args(argc, argv, {"--json", "--file", "--field"});
+  xenia::utils::CommandLineArgParser args(argc, argv, {"--json", "--file", "--field", "--isovals"});
 
   auto jsonFile = args.GetArg("--json")[0];
   auto bpFile = args.GetArg("--file")[0];
+  auto argIsoVals = args.GetArg("--isovals");
+  std::vector<vtkm::FloatDefault> isoVals;
+  for (const auto& val : argIsoVals)
+    isoVals.push_back(std::stof(val));
 
   fides::io::DataSetReader reader(jsonFile);
   std::unordered_map<std::string, std::string> paths;
@@ -39,21 +43,26 @@ int main(int argc, char** argv)
 
   auto metaData = reader.ReadMetaData(paths);
   auto data = reader.ReadDataSet(paths, metaData);
+  data.PrintSummary(std::cout);
 
   //generate the contour
   vtkm::filter::contour::Contour contour;
+  contour.SetGenerateNormals(false);
 
   contour.SetActiveField(args.GetArg("--field")[0]);
-  contour.SetIsoValue(0, 5);
-  contour.SetGenerateNormals(true);
+  for (int i = 0; i < isoVals.size(); i++)
+    contour.SetIsoValue(i, isoVals[i]);
+
+  //vtkm::filter::FieldSelection selection(vtkm::filter::FieldSelection::Mode::All);
+  //vtkm::filter::FieldSelection selection(vtkm::filter::FieldSelection::Mode::None);
+  //contour.SetFieldsToPass(selection);
 
   auto result = contour.Execute(data);
-
-  result.PrintSummary(std::cout);
 
   if (args.HasArg("--output"))
   {
     fides::io::DataSetWriter writer(args.GetArg("--output")[0]);
+    //writer.SetWriteFields({"ALL"});
     writer.Write(result, "BPFile");
   }
   else if (args.HasArg("--output_vtk"))

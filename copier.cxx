@@ -52,14 +52,19 @@ WriteData(const std::string& varName, adios2::IO& io, adios2::Engine& writer, co
 
 #define xeniaTemplateMacro(TYPE, call)               \
   {                                                  \
-  switch(TYPE[0])                                    \
-  {                                                  \
-  case 'i' : {using VAR_TYPE=int; call; break;}      \
-  case 'f' : {using VAR_TYPE=float; call; break;}    \
-  case 'd' : {using VAR_TYPE=double; call; break; }  \
-  default  : {throw std::string("Unsupported variable type: "+TYPE); break;} \
-  }                                                                    \
-  }                                                                    \
+  if (TYPE == "float") {using VAR_TYPE=float; call;}      \
+  else if (TYPE == "double") {using VAR_TYPE=double; call;} \
+  else if (TYPE == "int64_t") {using VAR_TYPE=int64_t; call;} \
+  else if (TYPE == "uint64_t") {using VAR_TYPE=uint64_t; call;} \
+  else if (TYPE == "int") {using VAR_TYPE=int; call;} \
+  else if (TYPE == "unsigned int") {using VAR_TYPE=unsigned int; call;} \
+  else if (TYPE == "long") {using VAR_TYPE=long; call;} \
+  else if (TYPE == "unsigned long") {using VAR_TYPE=unsigned long; call;} \
+  else if (TYPE == "unsigned") {using VAR_TYPE=unsigned; call;} \
+  else if (TYPE == "char") {using VAR_TYPE=char; call;} \
+  else if (TYPE == "unsigned char") {using VAR_TYPE=unsigned char; call;} \
+  else { throw std::string("Unsupported variable type: "+TYPE); } \
+  } \
 
 int main(int argc, char **argv)
 {
@@ -122,6 +127,8 @@ int main(int argc, char **argv)
       for (const auto &ai : allAttrs)
       {
         const auto a = inIO.InquireAttribute<std::string>(ai.first);
+        if (a.Name() != "fides/schema") continue;
+
         outIO.DefineAttribute<std::string>(a.Name(), a.Data()[0]);
       }
     }

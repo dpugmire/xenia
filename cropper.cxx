@@ -4,21 +4,16 @@
 #include <vector>
 
 #include <fides/DataSetReader.h>
-#include <vtkm/io/VTKDataSetWriter.h>
-#include <vtkm/filter/entity_extraction/ExternalFaces.h>
+#include <fides/DataSetWriter.h>
 
 #include "utils/CommandLineArgParser.h"
 
 static void
-DumpPartitions(const vtkm::cont::PartitionedDataSet& pds, const std::string& outName)
+DumpPartitions(const vtkm::cont::DataSet& pds, const std::string& outName)
 {
-  for (vtkm::Id i = 0; i < pds.GetNumberOfPartitions(); i++)
-  {
-    std::string fname = outName + std::to_string(i) + ".vtk";
-    vtkm::io::VTKDataSetWriter writer(fname);
-    writer.SetFileTypeToBinary();
-    writer.WriteDataSet(pds.GetPartition(i));
-  }
+  std::cout<<"Writing: "<<outName<<std::endl;
+  fides::io::DataSetWriter writer(outName);
+  writer.Write(pds, "BPFile");
 }
 
 static vtkm::cont::PartitionedDataSet
@@ -35,6 +30,7 @@ ReadPartitions(const xenia::utils::CommandLineArgParser& args)
     std::cout<<"Reading: w/ json "<<bpFile<<" "<<jsonFile<<std::endl;
 
     fides::io::DataSetReader reader(jsonFile);
+    auto status = reader.PrepareNextStep(paths);
     auto metaData = reader.ReadMetaData(paths);
     pds = reader.ReadDataSet(paths, metaData);
     std::cout<<"Read done"<<std::endl;
@@ -42,12 +38,9 @@ ReadPartitions(const xenia::utils::CommandLineArgParser& args)
   else
   {
     std::cout<<"Reading: w/ attrs "<<bpFile<<std::endl;
-    fides::metadata::Vector<std::size_t> blockSelection;
-    blockSelection.Data.push_back(0);
     fides::io::DataSetReader reader(bpFile, fides::io::DataSetReader::DataModelInput::BPFile);
     //auto status = reader.PrepareNextStep(paths);
     auto metaData = reader.ReadMetaData(paths);
-    //metaData.Set(fides::keys::BLOCK_SELECTION(), blockSelection);
 
     pds = reader.ReadDataSet(paths, metaData);
     std::cout<<"Read done"<<std::endl;
@@ -60,11 +53,15 @@ int main(int argc, char** argv)
 {
   MPI_Init(&argc, &argv);
 
-  xenia::utils::CommandLineArgParser args(argc, argv, {"--file", "--output"});
+  xenia::utils::CommandLineArgParser args(argc, argv, {"--file", "--output", "--index" });
 
   auto data = ReadPartitions(args);
+  int index = std::stoi(args.GetArg("--index")[0]);
 
-  DumpPartitions(data, args.GetArg("--output")[0]);
+  if (index < data.GetNumberOfPartitions())
+    DumpPartitions(data.GetPartition(index), args.GetArg("--output")[0]);
+  else
+    std::cerr<<"Error: index out of range."<<std::endl;
 
   MPI_Finalize();
   return 0;
