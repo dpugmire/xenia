@@ -5,6 +5,11 @@ project(VTKmDemo C CXX)
 find_package(VTKm REQUIRED QUIET)
 find_package(Fides REQUIRED QUIET)
 find_package(adios2 REQUIRED QUIET)
+find_package(Boost REQUIRED)
+
+if(Boost_FOUND)
+  include_directories(${Boost_INCLUDE_DIRS})
+endif()
 
 set(UTIL_HEADERS
   utils/CommandLineArgParser.h
@@ -41,3 +46,7 @@ target_link_libraries(noop PRIVATE xenia_utils fides vtkm::io adios2::adios2 MPI
 
 add_executable(cropper cropper.cxx)
 target_link_libraries(cropper PRIVATE xenia_utils fides vtkm::io adios2::adios2 MPI::MPI_CXX MPI::MPI_C)
+
+add_executable(render render.cxx)
+target_link_libraries(render ${Boost_LIBRARIES})
+target_link_libraries(render PRIVATE xenia_utils ${Boost_LIBRARIES} fides vtkm::io vtkm::rendering adios2::adios2 MPI::MPI_CXX MPI::MPI_C)

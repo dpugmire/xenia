@@ -5,6 +5,8 @@
 #include <map>
 #include <iostream>
 
+#include <vtkm/Types.h>
+
 namespace xenia
 {
 namespace utils
@@ -39,6 +41,12 @@ public:
 
     return res;
   }
+
+  bool GetArgAs(const std::string& argNm, vtkm::FloatDefault& val) const;
+  bool GetArgAs(const std::string& argNm, vtkm::Id& val) const;
+
+  bool GetArgAs(const std::string& argNm, vtkm::Vec2f_32& vec) const;
+  bool GetArgAs(const std::string& argNm, vtkm::Vec3f_32& vec) const;
 
   bool CheckRequired() const
   {
@@ -88,5 +96,78 @@ private:
   std::vector<std::string> RequiredArgs;
   std::map<std::string, std::vector<std::string>> Args;
 };
+
+
+bool
+CommandLineArgParser::GetArgAs(const std::string& argNm, vtkm::FloatDefault& val) const
+{
+  const auto& it = this->Args.find(argNm);
+  if (it != this->Args.end())
+  {
+    const auto& params = it->second;
+    if (params.size() == 1)
+    {
+      val = std::stof(params[0]);
+      return true;
+    }
+  }
+
+  return false;
+}
+
+bool
+CommandLineArgParser::GetArgAs(const std::string& argNm, vtkm::Vec2f_32& vec) const
+{
+  const auto& it = this->Args.find(argNm);
+
+  if (it != this->Args.end())
+  {
+    const auto& params = it->second;
+    if (params.size() == 1)
+    {
+      vtkm::FloatDefault val = std::stof(params[0]);
+      vec[0] = val;
+      vec[1] = val;
+      return true;
+    }
+    else if (params.size() == 2)
+    {
+      vec[0] = std::stof(params[0]);
+      vec[1] = std::stof(params[1]);
+      return true;
+    }
+  }
+
+  return false;
+}
+
+bool
+CommandLineArgParser::GetArgAs(const std::string& argNm, vtkm::Vec3f_32& vec) const
+{
+  const auto& it = this->Args.find(argNm);
+
+  if (it != this->Args.end())
+  {
+    const auto& params = it->second;
+
+    if (params.size() == 1)
+    {
+      vtkm::FloatDefault val = std::stof(params[0]);
+      vec[0] = val;
+      vec[1] = val;
+      vec[2] = val;
+      return true;
+    }
+    else if (params.size() == 3)
+    {
+      vec[0] = std::stof(params[0]);
+      vec[1] = std::stof(params[1]);
+      vec[2] = std::stof(params[2]);
+      return true;
+    }
+  }
+
+  return false;
+}
 
 }} //namespace xenia::utils
