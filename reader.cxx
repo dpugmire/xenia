@@ -10,6 +10,20 @@ int main(int argc, char** argv)
 {
   MPI_Init(&argc, &argv);
 
+  if (vm.count("help")) {
+      cout << desc << "\n";
+      return 1;
+  }
+  
+  
+
+
+  if (vm.count("compression"))
+      cout << "Compression level was set to " 
+   << vm["compression"].as<int>() << ".\n";
+  else
+      cout << "Compression level was not set.\n";
+
   xenia::utils::CommandLineArgParser args(argc, argv, {"--json", "--file"});
 
   auto jsonFile = args.GetArg("--json")[0];

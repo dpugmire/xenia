@@ -3,7 +3,7 @@
 #include <vector>
 #include <iostream>
 
-#include "utils/CommandLineArgParser.h"
+#include <boost/program_options.hpp>
 #include "utils/ReadData.h"
 #include "utils/WriteData.h"
 
@@ -16,58 +16,57 @@
 #include <vtkm/rendering/View3D.h>
 
 vtkm::rendering::CanvasRayTracer
-MakeCanvas(const xenia::utils::CommandLineArgParser& args)
+MakeCanvas(boost::program_options::variables_map& vm)
 {
   vtkm::Vec<vtkm::Id,2> res(256, 256);
 
-  if (args.HasArg("--imagesize"))
+  if (vm.count("imagesize") == 2)
   {
-    res[0] = std::stoi(args.GetArg("--imagesize")[0]);
-    res[1] = std::stoi(args.GetArg("--imagesize")[1]);
+    const auto& vals = vm["imagesize"].as<std::vector<vtkm::FloatDefault>>();
+    res[0] = vals[0];
+    res[1] = vals[1];
   }
 
   return vtkm::rendering::CanvasRayTracer(res[0], res[1]);
 }
 
 vtkm::rendering::Camera
-MakeCamera(const xenia::utils::CommandLineArgParser& args)
+MakeCamera(boost::program_options::variables_map& vm)
 {
   vtkm::rendering::Camera camera;
-  vtkm::Vec3f_32 position(0,0,10);
-  vtkm::Vec3f_32 lookAt(0,0,0);
+  vtkm::Vec3f_32 position(1.5, 1.5, 1.5);
+  vtkm::Vec3f_32 lookAt(.5, .5, .5);
   vtkm::Vec3f_32 up(0,1,0);
   vtkm::FloatDefault fov = 60;
   vtkm::Vec2f_32 clip(1.0, 10.0);
 
-  if (args.HasArg("--position"))
+  if (vm.count("position") == 3)
   {
-    const auto& arg = args.GetArg("--position");
+    const auto& vals = vm["position"].as<std::vector<vtkm::FloatDefault>>();
     for (int i = 0; i < 3; i++)
-      position[i] = std::stof(arg[i]);
+      position[i] = vals[i];
   }
-  if (args.HasArg("--lookat"))
+  if (vm.count("lookat") == 3)
   {
-    const auto& arg = args.GetArg("--lookat");
+    const auto& vals = vm["lookat"].as<std::vector<vtkm::FloatDefault>>();
     for (int i = 0; i < 3; i++)
-      lookAt[i] = std::stof(arg[i]);
+      lookAt[i] = vals[i];
   }
-
-  if (args.HasArg("--up"))
+  if (vm.count("up") == 3)
   {
-    const auto& arg = args.GetArg("--up");
+    const auto& vals = vm["up"].as<std::vector<vtkm::FloatDefault>>();
     for (int i = 0; i < 3; i++)
-      up[i] = std::stof(arg[i]);
+      up[i] = vals[i];
   }
-  if (args.HasArg("--fov"))
+  if (vm.count("fov") == 1)
   {
-    const auto& arg = args.GetArg("--fov");
-    fov = std::stof(arg[0]);
+    fov = vm["fov"].as<vtkm::FloatDefault>();
   }
-  if (args.HasArg("--clip"))
+  if (vm.count("clip") == 2)
   {
-    const auto& arg = args.GetArg("--clip");
-    for (int i = 0; i < 2; i++)
-      clip[i] = std::stof(arg[i]);
+    const auto& vals = vm["clip"].as<std::vector<vtkm::FloatDefault>>();
+    clip[0] = vals[0];
+    clip[1] = vals[1];
   }
 
   camera.SetPosition(position);
@@ -81,16 +80,38 @@ MakeCamera(const xenia::utils::CommandLineArgParser& args)
 
 int main(int argc, char** argv)
 {
-  MPI_Init(&argc, &argv);
+  MPI_Init(NULL, NULL);
+  namespace po = boost::program_options;
 
-  xenia::utils::CommandLineArgParser args(argc, argv, {"--file", "--output", "--field"});
+  po::options_description desc("Allowed options");
+  desc.add_options()
+    ("help", "produce help message")
+    ("file", po::value<std::string>(), "Input file")
+    ("json", po::value<std::string>(), "Fides JSON data model file")        
+    ("output", po::value<std::string>(), "Output file")
+    ("field", po::value<std::string>(), "field name in input data")
+    ("position", po::value<std::vector<std::string>>()->multitoken(), "Camera position")
+    ("lookat", po::value<std::vector<std::string>>()->multitoken(), "Camera look at position")
+    ("up", po::value<std::vector<std::string>>()->multitoken(), "Camera up direction")
+    ("fov", po::value<float>(), "Camera up direction")
+    ;
 
-  auto data = xenia::utils::ReadData(args);
-  std::string fieldName = args.GetArg("--field")[0];
+  po::variables_map vm;
+  po::store(po::parse_command_line(argc, argv, desc), vm);
+  po::notify(vm);
+  
+  if (vm.count("help"))
+  {
+    std::cout << desc << "\n";
+    return 1;
+  }
+
+  auto data = xenia::utils::ReadData(vm);
+  std::string fieldName = vm["field"].as<std::string>();
 
   vtkm::cont::ColorTable colorTable("inferno");
   vtkm::rendering::Color bg(0.2f, 0.2f, 0.2f, 1.0f);
-
+  
   vtkm::rendering::Scene scene;
   for (const auto& ds : data)
   {
@@ -101,14 +122,15 @@ int main(int argc, char** argv)
     scene.AddActor(actor);
   }
 
-  auto canvas = MakeCanvas(args);
-  auto camera = MakeCamera(args);
-
+  std::string output = vm["output"].as<std::string>();
+  auto canvas = MakeCanvas(vm);
+  auto camera = MakeCamera(vm);
+  
   vtkm::rendering::View3D view(scene, vtkm::rendering::MapperRayTracer(), canvas, camera, bg);
 
   view.Paint();
-  view.SaveAs(args.GetArg("--output")[0]);
-
+  view.SaveAs(output);
+  
   MPI_Finalize();
   return 0;
 }

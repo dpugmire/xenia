@@ -1,7 +1,7 @@
 #include <mpi.h>
 #include <vector>
+#include <boost/program_options.hpp>
 
-#include "utils/CommandLineArgParser.h"
 #include "utils/ReadData.h"
 #include "utils/WriteData.h"
 
@@ -12,22 +12,38 @@
 
 int main(int argc, char** argv)
 {
-  MPI_Init(&argc, &argv);
+  MPI_Init(NULL, NULL);
 
-  xenia::utils::CommandLineArgParser args(argc, argv, {"--file", "--field", "--isovals", "--output"});
+  namespace po = boost::program_options;
+  po::options_description desc("Allowed options");
+  desc.add_options()
+    ("help", "produce help message")
+    ("file", po::value<std::string>(), "Input file")
+    ("json", po::value<std::string>(), "Fides JSON data model file")    
+    ("output", po::value<std::string>(), "Output file")
+    ("field", po::value<std::string>(), "field name in input data")
+    ("isovals", po::value<std::vector<std::string>>(), "Isosurface values")
+    ;
 
-  auto argIsoVals = args.GetArg("--isovals");
-  std::vector<vtkm::FloatDefault> isoVals;
-  for (const auto& val : argIsoVals)
-    isoVals.push_back(std::stof(val));
+  po::variables_map vm;
+  po::store(po::parse_command_line(argc, argv, desc), vm);
+  po::notify(vm);
+  
+  if (vm.count("help"))
+  {
+    std::cout << desc << "\n";
+    return 1;
+  }
 
-  auto data = xenia::utils::ReadData(args);
+  auto data = xenia::utils::ReadData(vm);
+  std::string fieldName = vm["field"].as<std::string>();
+  auto isoVals = vm["isovals"].as<std::vector<vtkm::FloatDefault>>();
 
   //generate the contour
   vtkm::filter::contour::Contour contour;
   contour.SetGenerateNormals(false);
 
-  contour.SetActiveField(args.GetArg("--field")[0]);
+  contour.SetActiveField(fieldName);
   for (int i = 0; i < isoVals.size(); i++)
     contour.SetIsoValue(i, isoVals[i]);
 
@@ -36,7 +52,7 @@ int main(int argc, char** argv)
 
   auto result = contour.Execute(data);
 
-  xenia::utils::WriteData(result, args.GetArg("--output")[0]);
+  xenia::utils::WriteData(result, vm["output"].as<std::string>());
 
   MPI_Finalize();
   return 0;

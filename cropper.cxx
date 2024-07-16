@@ -1,22 +1,35 @@
 #include <mpi.h>
 #include <string>
 #include <vector>
+#include <boost/program_options.hpp>
 
-#include "utils/CommandLineArgParser.h"
 #include "utils/ReadData.h"
 #include "utils/WriteData.h"
 
 int main(int argc, char** argv)
 {
-  MPI_Init(&argc, &argv);
+  MPI_Init(NULL, NULL);
+  
+  namespace po = boost::program_options;
 
-  xenia::utils::CommandLineArgParser args(argc, argv, {"--file", "--output", "--index" });
+  po::options_description desc("Allowed options");
+  desc.add_options()
+    ("help", "produce help message")
+    ("file", po::value<std::string>(), "Input file")
+    ("json", po::value<std::string>(), "Fides JSON data model file")        
+    ("output", po::value<std::string>(), "Output file")
+    ("index", po::value<int>(), "Dataset index")
+    ;
 
-  auto data = xenia::utils::ReadData(args);
-  int index = std::stoi(args.GetArg("--index")[0]);
+  po::variables_map vm;
+  po::store(po::parse_command_line(argc, argv, desc), vm);
+  po::notify(vm);
+
+  auto data = xenia::utils::ReadData(vm);
+  int index = vm["index"].as<int>();
 
   if (index < data.GetNumberOfPartitions())
-    xenia::utils::WriteData(data, args.GetArg("--output")[0]);
+    xenia::utils::WriteData(data, vm["output"].as<std::string>());
   else
     std::cerr<<"Error: index out of range."<<std::endl;
 

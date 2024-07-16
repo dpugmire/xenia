@@ -5,7 +5,7 @@ project(VTKmDemo C CXX)
 find_package(VTKm REQUIRED QUIET)
 find_package(Fides REQUIRED QUIET)
 find_package(adios2 REQUIRED QUIET)
-find_package(Boost REQUIRED)
+find_package(Boost REQUIRED COMPONENTS program_options)
 
 if(Boost_FOUND)
   include_directories(${Boost_INCLUDE_DIRS})
@@ -20,7 +20,7 @@ set(UTIL_SRC
 
 set(UTIL_FILES ${UTIL_HEADERS} ${UTIL_SRC})
 add_library(xenia_utils SHARED ${UTIL_SRC} ${UTIL_SRC})
-target_link_libraries(xenia_utils PRIVATE fides vtkm::io vtkm::cont)
+target_link_libraries(xenia_utils PRIVATE ${Boost_LIBRARIES} fides vtkm::io vtkm::cont)
 
 #add_executable(reader reader.cxx)
 #target_include_directories(reader PRIVATE utils)
@@ -33,20 +33,22 @@ add_executable(copier copier.cxx)
 target_link_libraries(copier PRIVATE vtkm::io adios2::adios2 MPI::MPI_CXX MPI::MPI_C)
 
 add_executable(contour contour.cxx)
-target_link_libraries(contour PRIVATE xenia_utils fides vtkm::io vtkm::filter_contour adios2::adios2 MPI::MPI_CXX MPI::MPI_C)
+target_link_libraries(contour PRIVATE ${Boost_LIBRARIES} xenia_utils fides vtkm::io vtkm::filter_contour adios2::adios2 MPI::MPI_CXX MPI::MPI_C)
 
 add_executable(converter converter.cxx)
-target_link_libraries(converter PRIVATE xenia_utils fides vtkm::io vtkm::filter_contour adios2::adios2 MPI::MPI_CXX MPI::MPI_C)
+target_link_libraries(converter PRIVATE xenia_utils ${Boost_LIBRARIES} fides vtkm::io vtkm::filter_contour adios2::adios2 MPI::MPI_CXX MPI::MPI_C)
 
 add_executable(ext_faces ext_faces.cxx)
-target_link_libraries(ext_faces PRIVATE xenia_utils fides vtkm::io vtkm::filter_contour vtkm::filter_entity_extraction  vtkm::filter_clean_grid adios2::adios2 MPI::MPI_CXX MPI::MPI_C)
+target_link_libraries(ext_faces PRIVATE xenia_utils ${Boost_LIBRARIES} fides vtkm::io vtkm::filter_contour vtkm::filter_entity_extraction  vtkm::filter_clean_grid adios2::adios2 MPI::MPI_CXX MPI::MPI_C)
 
 add_executable(noop noop.cxx)
-target_link_libraries(noop PRIVATE xenia_utils fides vtkm::io adios2::adios2 MPI::MPI_CXX MPI::MPI_C)
+target_link_libraries(noop PRIVATE ${Boost_LIBRARIES} xenia_utils fides vtkm::io adios2::adios2 MPI::MPI_CXX MPI::MPI_C)
 
 add_executable(cropper cropper.cxx)
-target_link_libraries(cropper PRIVATE xenia_utils fides vtkm::io adios2::adios2 MPI::MPI_CXX MPI::MPI_C)
+target_link_libraries(cropper PRIVATE xenia_utils ${Boost_LIBRARIES} fides vtkm::io adios2::adios2 MPI::MPI_CXX MPI::MPI_C)
 
 add_executable(render render.cxx)
-target_link_libraries(render ${Boost_LIBRARIES})
 target_link_libraries(render PRIVATE xenia_utils ${Boost_LIBRARIES} fides vtkm::io vtkm::rendering adios2::adios2 MPI::MPI_CXX MPI::MPI_C)
+
+add_executable(hello hello.cxx)
+target_link_libraries(hello PRIVATE MPI::MPI_CXX)

@@ -2,11 +2,11 @@
 #include <string>
 #include <unordered_map>
 #include <vector>
+#include <boost/program_options.hpp>
 
 #include <vtkm/filter/entity_extraction/ExternalFaces.h>
 #include <vtkm/filter/clean_grid/CleanGrid.h>
 
-#include "utils/CommandLineArgParser.h"
 #include "utils/ReadData.h"
 #include "utils/WriteData.h"
 
@@ -24,14 +24,26 @@ ExternalFaces(const vtkm::cont::PartitionedDataSet& inData)
 
 int main(int argc, char** argv)
 {
-  MPI_Init(&argc, &argv);
+  MPI_Init(NULL, NULL);
 
-  xenia::utils::CommandLineArgParser args(argc, argv, {"--file", "--output"});
+  namespace po = boost::program_options;
 
-  auto data = xenia::utils::ReadData(args);
+  po::options_description desc("Allowed options");
+  desc.add_options()
+    ("help", "produce help message")
+    ("file", po::value<std::string>(), "Input file")
+    ("json", po::value<std::string>(), "Fides JSON data model file")        
+    ("output", po::value<std::string>(), "Output file")
+    ;
+
+  po::variables_map vm;
+  po::store(po::parse_command_line(argc, argv, desc), vm);
+  po::notify(vm);
+
+  auto data = xenia::utils::ReadData(vm);
   data = ExternalFaces(data);
 
-  xenia::utils::WriteData(data, args.GetArg("--output")[0]);
+  xenia::utils::WriteData(data, vm["output"].as<std::string>());
 
   MPI_Finalize();
   return 0;
