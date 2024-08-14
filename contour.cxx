@@ -35,7 +35,10 @@ int main(int argc, char** argv)
     return 1;
   }
 
-  auto data = xenia::utils::ReadData(vm);
+  xenia::utils::DataSetReader reader(vm);
+  reader.BeginStep();
+  auto data = reader.ReadDataSet();
+  reader.EndStep();
   std::string fieldName = vm["field"].as<std::string>();
   auto isoVals = vm["isovals"].as<std::vector<vtkm::FloatDefault>>();
 

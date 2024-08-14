@@ -24,18 +24,12 @@ int main(int argc, char** argv)
   else
       cout << "Compression level was not set.\n";
 
-  xenia::utils::CommandLineArgParser args(argc, argv, {"--json", "--file"});
 
-  auto jsonFile = args.GetArg("--json")[0];
-  auto bpFile = args.GetArg("--file")[0];
+  xenia::utils::DataSetReader reader(vm);
+  reader.BeginStep();
+  auto data = reader.ReadDataSet();
+  reader.EndStep();
 
-  fides::io::DataSetReader reader(jsonFile);
-  std::unordered_map<std::string, std::string> paths;
-
-  paths["source"] = std::string(bpFile);
-
-  auto metaData = reader.ReadMetaData(paths);
-  auto data = reader.ReadDataSet(paths, metaData);
   data.PrintSummary(std::cout);
 
   MPI_Finalize();

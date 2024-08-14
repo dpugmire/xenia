@@ -10,7 +10,7 @@ namespace xenia
 {
 namespace utils
 {
-
+#if 0
 vtkm::cont::PartitionedDataSet
 ReadData(const xenia::utils::CommandLineArgParser& args)
 {
@@ -132,9 +132,11 @@ CreateDataSetReader(const boost::program_options::variables_map& vm)
 
   return reader;
 }
+#endif
 
 DataSetReader::DataSetReader(const boost::program_options::variables_map& vm)
 {
+  std::cout<<"building dataset reader."<<std::endl;
   this->FileName = vm["file"].as<std::string>();
   if (this->FileName.find(".bp") == std::string::npos)
     throw std::string("Error. Only BP files supported.");
@@ -143,11 +145,11 @@ DataSetReader::DataSetReader(const boost::program_options::variables_map& vm)
   if (vm.count("json") == 1)
   {
     this->JSONFile = vm["json"].as<std::string>();
-    this->FidesReader = new fides::io::DataSetReader(this->JSONFile);
+    this->FidesReader = std::unique_ptr<fides::io::DataSetReader>(new fides::io::DataSetReader(this->JSONFile));
   }
   else
   {
-    this->FidesReader = new fides::io::DataSetReader(this->FileName, fides::io::DataSetReader::DataModelInput::BPFile);    
+    this->FidesReader = std::unique_ptr<fides::io::DataSetReader>(new fides::io::DataSetReader(this->FileName, fides::io::DataSetReader::DataModelInput::BPFile));
   }
 }
 

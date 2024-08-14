@@ -268,7 +268,7 @@ int main(int argc, char *argv[])
   MPI_Comm_size(MPI_COMM_WORLD, &size);
 
 #else
-  MPI_Init(&argc, &argv);
+  MPI_Init(NULL, NULL);//&argc, &argv);
   // rank is giving a number to each proccess
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
   //  the size of something

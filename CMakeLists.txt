@@ -1,11 +1,15 @@
 cmake_minimum_required(VERSION 3.12...3.15 FATAL_ERROR)
+#cmake_minimum_required(VERSION 3.25)
 project(VTKmDemo C CXX)
 
 #Find the VTK-m package
 find_package(VTKm REQUIRED QUIET)
 find_package(Fides REQUIRED QUIET)
-find_package(adios2 REQUIRED QUIET)
+#find_package(adios2 REQUIRED QUIET)
 find_package(Boost REQUIRED COMPONENTS program_options)
+#find_package(Boost COMPONENTS program_options)
+#find_package(Boost 1.85.0 REQUIRED QUIET)
+#find_package(Boost CONFIG)
 
 if(Boost_FOUND)
   include_directories(${Boost_INCLUDE_DIRS})
@@ -16,7 +20,8 @@ set(UTIL_HEADERS
   utils/ReadData.h
   utils/WriteData.h)
 set(UTIL_SRC
-  utils/ReadData.cxx)
+  utils/ReadData.cxx
+  utils/WriteData.cxx)
 
 set(UTIL_FILES ${UTIL_HEADERS} ${UTIL_SRC})
 add_library(xenia_utils SHARED ${UTIL_SRC} ${UTIL_SRC})

@@ -10,7 +10,7 @@
 
 int main(int argc, char** argv)
 {
-  MPI_Init(NULL, NULL);  
+  MPI_Init(NULL, NULL);
 
   namespace po = boost::program_options;
   po::options_description desc("Allowed options");
@@ -24,8 +24,12 @@ int main(int argc, char** argv)
   po::store(po::parse_command_line(argc, argv, desc), vm);
   po::notify(vm);
 
-  auto data = xenia::utils::ReadData(vm);
+  xenia::utils::DataSetReader reader(vm);
+  //reader.BeginStep();
+  auto data = reader.ReadDataSet();
+  reader.EndStep();
 
+  std::cout<<"Writing output..."<<std::endl;
   xenia::utils::WriteData(data, vm["output"].as<std::string>());
 
   MPI_Finalize();

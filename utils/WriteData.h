@@ -1,8 +1,8 @@
 #pragma once
 
-#include "CommandLineArgParser.h"
 #include <vtkm/cont/PartitionedDataSet.h>
 #include <vtkm/io/VTKDataSetWriter.h>
+#include <boost/program_options.hpp>
 
 #include <fides/DataSetWriter.h>
 #include <string>
@@ -47,6 +47,36 @@ WriteData(const vtkm::cont::PartitionedDataSet& pds, const std::string& outName)
     std::cerr<<" Error. Unsupported extension: "<<outName<<std::endl;
   }
 }
+
+class DataSetWriter
+{
+  public:
+  DataSetWriter(const boost::program_options::variables_map& vm);
+
+  bool WriteDataSet(const vtkm::cont::PartitionedDataSet& pds);
+  void BeginStep() {}
+  void EndStep() {this->Step++;}
+
+  void SetTimeVaryingOutput(bool val) { this->TimeVaryingOutput = val; }
+  bool GetTimeVaryingOutput() const { return this->TimeVaryingOutput; }
+
+  enum OutputFileType 
+  {
+    NONE = 0,
+    VTK = 1,
+    BP = 2,
+  };
+
+  bool WriteVTK(const vtkm::cont::PartitionedDataSet& pds);  
+  bool WriteBP(const vtkm::cont::PartitionedDataSet& pds);    
+
+  OutputFileType OutputType = OutputFileType::NONE;
+  std::string OutputFileName;
+  std::unique_ptr<fides::io::DataSetAppendWriter> Writer;
+  vtkm::Id Step = 0;
+  bool TimeVaryingOutput = false;
+};
+
 
 }
 } //xenia::utils
