@@ -11,9 +11,7 @@
 
 int main(int argc, char** argv)
 {
-  std::cout<<__LINE__<<std::endl;
   MPI_Init(NULL, NULL);
-  std::cout<<__LINE__<<std::endl;
 
   namespace po = boost::program_options;
 
@@ -33,28 +31,24 @@ int main(int argc, char** argv)
   std::string outputFname = vm["output"].as<std::string>();
   std::cout<<"Opening: "<<inputFname<<std::endl;
 
-  xenia::utils::DataSetReader reader(vm);
-  xenia::utils::DataSetWriter writer(vm);
-  reader.Init();
-      
-  reader.Step = 0;
-  while(true)
+  //There is an issue with the DataSetWriter. When it goes out of scope, it calls Engine.Close().
+  //This makes some MPI calls. When the object destructs after MPI_Finalize, results in an error.
   {
-    auto status = reader.BeginStep();
-    if (status == fides::StepStatus::NotReady)
-      continue;
-    else if (status == fides::StepStatus::EndOfStream)
-      break;
+    xenia::utils::DataSetReader reader(vm);
+    xenia::utils::DataSetWriter writer(vm);
+    reader.Init();
 
-    auto output = reader.FidesReader->ReadDataSet(reader.Paths, reader.MetaData);
+    vtkm::Id numSteps = reader.GetNumSteps();
+    for (vtkm::Id step = 0; step < numSteps; step++)
+    {
+      reader.Step = step;
+      auto output = reader.ReadDataSet(step);
 
-    std::cout<<"Step: "<<reader.Step<<" num ds= "<<output.GetNumberOfPartitions()<<std::endl;
-
-    writer.BeginStep();
-    writer.WriteDataSet(output);
-    writer.EndStep();
-    
-   reader.EndStep();
+      std::cout<<"Step: "<<step<<" num ds= "<<output.GetNumberOfPartitions()<<std::endl;
+      writer.BeginStep();
+      writer.WriteDataSet(output);
+      writer.EndStep();
+    }
   }
 
   MPI_Finalize();

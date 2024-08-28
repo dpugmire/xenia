@@ -57,3 +57,7 @@ target_link_libraries(render PRIVATE xenia_utils ${Boost_LIBRARIES} fides vtkm::
 
 add_executable(hello hello.cxx)
 target_link_libraries(hello PRIVATE MPI::MPI_CXX)
+
+## examples
+add_subdirectory(examples)
+

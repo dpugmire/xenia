@@ -20,7 +20,17 @@ class DataSetReader
   { 
     this->MetaData = this->FidesReader->ReadMetaData(this->Paths);
     this->InitCalled = true;
+
+    //For BPfile method...
+    if (this->MetaData.Has(fides::keys::NUMBER_OF_STEPS()))
+      this->NumSteps = this->MetaData.Get<fides::metadata::Size>(fides::keys::NUMBER_OF_STEPS()).NumberOfItems;
+    else
+      this->NumSteps = 1;
+
+    std::cout<<"***** NSTEPS= "<<this->NumSteps<<std::endl;
   }
+
+  vtkm::Id GetNumSteps() const { return this->NumSteps; }
 
   fides::StepStatus BeginStep()
   {
@@ -38,6 +48,14 @@ class DataSetReader
   }
 
   vtkm::cont::PartitionedDataSet
+  ReadDataSet(vtkm::Id step)
+  {
+    auto selections = this->MetaData;
+    selections.Set(fides::keys::STEP_SELECTION(), fides::metadata::Index(step));
+    return this->FidesReader->ReadDataSet(this->Paths, selections);
+  }
+
+  vtkm::cont::PartitionedDataSet
   ReadDataSet()
   {
     return this->FidesReader->ReadDataSet(this->Paths, this->MetaData);
@@ -51,6 +69,7 @@ class DataSetReader
   std::string JSONFile = "";
   std::string FileName = "";
   bool InitCalled = false;
+  vtkm::Id NumSteps = 0;
 };
 
 }
