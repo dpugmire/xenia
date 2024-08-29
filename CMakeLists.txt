@@ -53,7 +53,7 @@ add_executable(cropper cropper.cxx)
 target_link_libraries(cropper PRIVATE xenia_utils ${Boost_LIBRARIES} fides vtkm::io adios2::adios2 MPI::MPI_CXX MPI::MPI_C)
 
 add_executable(render render.cxx)
-target_link_libraries(render PRIVATE xenia_utils ${Boost_LIBRARIES} fides vtkm::io vtkm::rendering adios2::adios2 MPI::MPI_CXX MPI::MPI_C)
+target_link_libraries(render PRIVATE xenia_utils ${Boost_LIBRARIES} fides vtkm::io vtkm::rendering vtkm::source vtkm::filter_contour adios2::adios2 MPI::MPI_CXX MPI::MPI_C)
 
 add_executable(hello hello.cxx)
 target_link_libraries(hello PRIVATE MPI::MPI_CXX)
