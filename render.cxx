@@ -26,16 +26,30 @@ using vtkm::rendering::MapperRayTracer;
 using vtkm::rendering::MapperVolume;
 using vtkm::rendering::MapperWireframer;
 
+std::string
+CreateOutputFileName(const std::string& fname, vtkm::Id step)
+{
+ if (fname.find('%') != std::string::npos)
+ {
+   char buffer[128];
+   snprintf(buffer, sizeof(buffer), fname.c_str(), step);
+   std::string outFname(buffer);
+   return outFname;
+ }
+ else
+   return fname;
+}
+
 vtkm::rendering::CanvasRayTracer
 MakeCanvas(boost::program_options::variables_map& vm)
 {
-  vtkm::Vec<vtkm::Id,2> res(512, 512);//1024, 1024);//256, 256);
+  vtkm::Vec<vtkm::Id,2> res(1024, 1024);
 
-  if (vm.count("imagesize") == 2)
+  if (!vm["imagesize"].empty())
   {
-    const auto& vals = vm["imagesize"].as<std::vector<vtkm::FloatDefault>>();
-    res[0] = vals[0];
-    res[1] = vals[1];
+    const auto& vals = vm["imagesize"].as<std::vector<int>>();
+    res[0] = static_cast<vtkm::Id>(vals[0]);
+    res[1] = static_cast<vtkm::Id>(vals[1]);
   }
 
   auto canvas =vtkm::rendering::CanvasRayTracer(res[0], res[1]);
@@ -46,11 +60,11 @@ vtkm::rendering::Camera
 MakeCamera(boost::program_options::variables_map& vm)
 {
   vtkm::rendering::Camera camera;
-  vtkm::Vec3f_32 position(10,3,3); //(1.5, 1.5, 1.5);
-  vtkm::Vec3f_32 lookAt(3,3,3); //(.5, .5, .5);
+  vtkm::Vec3f_32 position(1.5, 1.5, 1.5);
+  vtkm::Vec3f_32 lookAt(.5, .5, .5);
   vtkm::Vec3f_32 up(0,1,0);
   vtkm::FloatDefault fov = 60;
-  vtkm::Vec2f_32 clip(-10.0, 10.0);
+  vtkm::Vec2f_32 clip(-1.0, 1.0);
 
   if (!vm["position"].empty())
   {
@@ -113,6 +127,7 @@ int main(int argc, char** argv)
     ("up", po::value<std::vector<float>>()->multitoken(), "Camera up direction")
     ("fov", po::value<float>(), "Camera up direction")
     ("clip", po::value<std::vector<float>>()->multitoken(), "Clipping range")
+    ("imagesize", po::value<std::vector<int>>()->multitoken(), "Image size")
     ;
 
   for (int i = 0; i < argc; i++)
@@ -136,11 +151,13 @@ int main(int argc, char** argv)
 
   vtkm::cont::ColorTable colorTable("inferno");
   vtkm::rendering::Color bg(0.2f, 0.2f, 0.2f, 1.0f);
-  std::string output = vm["output"].as<std::string>();
+  std::string outputFile = vm["output"].as<std::string>();
+
+
 
   auto canvas = MakeCanvas(vm);
   auto camera = MakeCamera(vm);
-  
+
   vtkm::Id numSteps = reader.GetNumSteps();
   for (vtkm::Id step = 0; step < numSteps; step++)
   {
@@ -158,12 +175,11 @@ int main(int argc, char** argv)
       scene.AddActor(actor);
     }
 
-    std::string output = vm["output"].as<std::string>();
-
     vtkm::rendering::View3D view(scene, vtkm::rendering::MapperRayTracer(), canvas, camera, bg);
 
     view.Paint();
-    view.SaveAs(output);
+    auto fname = CreateOutputFileName(outputFile, step);
+    view.SaveAs(fname);
   }
 
   MPI_Finalize();
