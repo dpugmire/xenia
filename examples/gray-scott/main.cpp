@@ -5,6 +5,8 @@
 
 #include <fstream>
 #include <iostream>
+#include <chrono>
+#include <thread>
 
 #include <adios2.h>
 #include <mpi.h>
@@ -123,6 +125,10 @@ int main(int argc, char **argv)
 
     for (int it = restart_step; it < settings.steps;)
     {
+        std::cout<<it<<": Sleep....";
+        //std::this_thread::sleep_for(std::chrono::milliseconds(2000));
+        std::cout<<" Done."<<std::endl;
+
 #ifdef ENABLE_TIMERS
         MPI_Barrier(comm);
         timer_total.start();
