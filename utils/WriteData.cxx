@@ -18,6 +18,17 @@ DataSetWriter::DataSetWriter(const boost::program_options::variables_map& vm)
     else if (this->OutputFileName.find(".bp") != std::string::npos)
     {
         this->OutputType = OutputFileType::BP;
+        if (!vm["output_engine"].empty())
+        {
+            auto engine = vm["output_engine"].as<std::string>();
+            if (engine == "SST")
+                this->OutputType = OutputFileType::SST;
+            else if (engine == "BP")
+                this->OutputType = OutputFileType::BP;
+            else
+                throw std::runtime_error("Error. Unknown engine type: " + engine);
+        }
+
         this->Writer = std::unique_ptr<fides::io::DataSetAppendWriter>(new fides::io::DataSetAppendWriter(this->OutputFileName));
     }
 }
@@ -26,9 +37,25 @@ bool DataSetWriter::WriteDataSet(const vtkm::cont::PartitionedDataSet& pds)
 {
     if (this->OutputType == OutputFileType::VTK)
         return this->WriteVTK(pds);
-    else if (this->OutputType == OutputFileType::BP)
-        return this->WriteBP(pds);
+    else if (this->Writer != nullptr)
+    {
+        if (this->OutputType == OutputFileType::BP)
+            this->Writer->Write(pds, "BPFile");
+        else if (this->OutputType == OutputFileType::SST)
+            this->Writer->Write(pds, "SST");
+        else
+            return false;
+
+        return true;
+    }
     return false;
+}
+
+void
+DataSetWriter::Close()
+{
+    if (this->Writer != nullptr)
+        this->Writer->Close();
 }
 
 bool DataSetWriter::WriteVTK(const vtkm::cont::PartitionedDataSet& pds)

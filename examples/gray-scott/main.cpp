@@ -125,9 +125,9 @@ int main(int argc, char **argv)
 
     for (int it = restart_step; it < settings.steps;)
     {
-        std::cout<<it<<": Sleep....";
-        //std::this_thread::sleep_for(std::chrono::milliseconds(2000));
-        std::cout<<" Done."<<std::endl;
+        std::cout<<"Step: "<<it<<std::endl;
+        std::this_thread::sleep_for(std::chrono::milliseconds(50));
+        //std::cout<<" Done."<<std::endl;
 
 #ifdef ENABLE_TIMERS
         MPI_Barrier(comm);

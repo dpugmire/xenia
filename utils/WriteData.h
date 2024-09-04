@@ -56,6 +56,7 @@ class DataSetWriter
   bool WriteDataSet(const vtkm::cont::PartitionedDataSet& pds);
   void BeginStep() {}
   void EndStep() {this->Step++;}
+  void Close();
 
   void SetTimeVaryingOutput(bool val) { this->TimeVaryingOutput = val; }
   bool GetTimeVaryingOutput() const { return this->TimeVaryingOutput; }
@@ -65,6 +66,7 @@ class DataSetWriter
     NONE = 0,
     VTK = 1,
     BP = 2,
+    SST = 3,
   };
 
   bool WriteVTK(const vtkm::cont::PartitionedDataSet& pds);  

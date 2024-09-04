@@ -34,6 +34,7 @@ RunBP(const boost::program_options::variables_map& vm)
 
     RunService(writer, output, vm);
   }
+  writer.Close();
 }
 
 static void
@@ -98,7 +99,8 @@ int main(int argc, char** argv)
     ("file", po::value<std::string>(), "Input file")
     ("json", po::value<std::string>(), "Fides JSON data model file")
     ("output", po::value<std::string>(), "Output file")
-    ("engine", po::value<std::string>(), "Adios2 engine type (BP or SST")
+    ("input_engine", po::value<std::string>(), "Adios2 input engine type (BP or SST")
+    ("output_engine", po::value<std::string>(), "Adios2 output engine type (BP or SST")
     ;
 
   po::variables_map vm;
@@ -106,13 +108,15 @@ int main(int argc, char** argv)
   po::notify(vm);
 
   std::string engineType = "BP5";
-  if (!vm["engine"].empty())
-    engineType = vm["engine"].as<std::string>();
+  if (!vm["input_engine"].empty())
+    engineType = vm["input_engine"].as<std::string>();
 
   if (engineType == "SST")
     RunSST(vm);
   else
     RunBP(vm);
+  MPI_Finalize();
+
   return 0;
 
 
@@ -176,6 +180,5 @@ int main(int argc, char** argv)
   }
 #endif
 
-  MPI_Finalize();
   return 0;
 }
