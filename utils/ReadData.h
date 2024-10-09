@@ -22,24 +22,34 @@ class DataSetReader
     this->InitCalled = true;
 
     //For BPfile method...
-    if (this->MetaData.Has(fides::keys::NUMBER_OF_STEPS()))
-      this->NumSteps = this->MetaData.Get<fides::metadata::Size>(fides::keys::NUMBER_OF_STEPS()).NumberOfItems;
-    else
-      this->NumSteps = 1;
+    if (this->EngineType == "BP5")
+    {
+      if (this->MetaData.Has(fides::keys::NUMBER_OF_STEPS()))
+        this->NumSteps = this->MetaData.Get<fides::metadata::Size>(fides::keys::NUMBER_OF_STEPS()).NumberOfItems;
+      else
+        this->NumSteps = 1;
+      std::cout<<"***** NSTEPS= "<<this->NumSteps<<std::endl;
+    }
+    else if (this->EngineType == "SST")
+    {
+      std::cout<<"SST init."<<std::endl;
+    }
 
-    std::cout<<"***** NSTEPS= "<<this->NumSteps<<std::endl;
   }
 
   vtkm::Id GetNumSteps() const { return this->NumSteps; }
 
+  vtkm::cont::PartitionedDataSet Read();
+
   fides::StepStatus BeginStep()
   {
     if (!this->InitCalled)
-    {
       throw std::runtime_error("Error: Init must be called before BeginStep().");
-    }
 
-    auto status = this->FidesReader->PrepareNextStep(this->Paths);
+    fides::StepStatus status = fides::StepStatus::OK;
+    if (this->EngineType == "SST")
+      status = this->FidesReader->PrepareNextStep(this->Paths);
+
     return status;
   }
   void EndStep()
@@ -65,11 +75,14 @@ class DataSetReader
   vtkm::Id Step = 0;
   std::unique_ptr<fides::io::DataSetReader> FidesReader;
   std::unordered_map<std::string, std::string> Paths;
-  fides::metadata::MetaData MetaData;  
+  fides::metadata::MetaData MetaData;
   std::string JSONFile = "";
   std::string FileName = "";
+  std::string EngineType = "BP5";
   bool InitCalled = false;
   vtkm::Id NumSteps = 0;
+
+  static const std::set<std::string> ValidEngineTypes;
 };
 
 }
