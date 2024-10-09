@@ -26,6 +26,18 @@ RunBP(const boost::program_options::variables_map& vm)
   reader.Init();
 
   vtkm::Id numSteps = reader.GetNumSteps();
+
+  for (vtkm::Id step = 0; step < numSteps; step++)
+  {
+    reader.BeginStep();
+    auto output = reader.Read();
+
+    RunService(writer, output, vm);
+
+    reader.EndStep();
+  }
+
+  /*
   for (vtkm::Id step = 0; step < numSteps; step++)
   {
     reader.Step = step;
@@ -34,6 +46,7 @@ RunBP(const boost::program_options::variables_map& vm)
 
     RunService(writer, output, vm);
   }
+  */
   writer.Close();
 }
 
@@ -42,7 +55,11 @@ RunSST(const boost::program_options::variables_map& vm)
 {
   std::cout<<"RunSST"<<std::endl;
   xenia::utils::DataSetWriter writer(vm);
+  xenia::utils::DataSetReader reader(vm);
 
+//old code.
+if (1)
+{
   std::string inputFname = vm["file"].as<std::string>();
   std::string outputFname = vm["output"].as<std::string>();
   std::cout<<"Opening: "<<inputFname<<std::endl;
@@ -60,6 +77,31 @@ RunSST(const boost::program_options::variables_map& vm)
   fides::DataSourceParams params;
   params["engine_type"] = "SST";
   reader.SetDataSourceParameters("source", params);
+  }
+
+  reader.Init();
+  vtkm::Id step = 0;
+  while (true)
+  {
+    auto status = reader.BeginStep();
+
+    if (status == fides::StepStatus::NotReady)
+      continue;
+    else if (status == fides::StepStatus::EndOfStream)
+      break;
+    else if (status == fides::StepStatus::OK)
+    {
+      std::cout<<"SST read step= "<<step<<std::endl;
+      auto output = reader.ReadDataSet();
+      std::cout<<"    np= "<<output.GetNumberOfPartitions()<<std::endl;
+      step++;
+    }
+    else
+      throw std::runtime_error("Unexpected status.");
+  }
+
+
+  /*
 
   int step = 0;
   while (true)
@@ -85,11 +127,12 @@ RunSST(const boost::program_options::variables_map& vm)
 
     step++;
   }
+  */
 }
 
 int main(int argc, char** argv)
 {
-  MPI_Init(NULL, NULL);
+  //MPI_Init(NULL, NULL);
 
   namespace po = boost::program_options;
 
@@ -115,7 +158,7 @@ int main(int argc, char** argv)
     RunSST(vm);
   else
     RunBP(vm);
-  MPI_Finalize();
+  //MPI_Finalize();
 
   return 0;
 
