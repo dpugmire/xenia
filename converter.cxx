@@ -3,6 +3,7 @@
 #include <vector>
 #include <boost/program_options.hpp>
 
+#include "utils/Debug.h"
 #include "utils/CommandLineArgParser.h"
 #include "utils/ReadData.h"
 #include "utils/WriteData.h"
@@ -20,6 +21,11 @@ RunService(xenia::utils::DataSetWriter& writer, vtkm::cont::PartitionedDataSet& 
 static void
 RunBP(const boost::program_options::variables_map& vm)
 {
+  int rank = 0, numProcs = 1;
+#ifdef ENABLE_MPI
+  MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+  MPI_Comm_size(MPI_COMM_WORLD, &numProcs);
+#endif
   std::cout<<"RunBP"<<std::endl;
   xenia::utils::DataSetReader reader(vm);
   xenia::utils::DataSetWriter writer(vm);
@@ -31,6 +37,7 @@ RunBP(const boost::program_options::variables_map& vm)
   {
     reader.BeginStep();
     auto output = reader.Read();
+    std::cout<<rank<<": has "<<output.GetNumberOfPartitions()<<std::endl;
 
     RunService(writer, output, vm);
 
@@ -127,6 +134,8 @@ int main(int argc, char** argv)
 #ifdef ENABLE_MPI
   MPI_Init(NULL, NULL);
 #endif
+
+  //InitDebug();
 
   namespace po = boost::program_options;
 

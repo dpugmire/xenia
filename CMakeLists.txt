@@ -1,6 +1,10 @@
 cmake_minimum_required(VERSION 3.12...3.15 FATAL_ERROR)
 project(Xenia C CXX)
 
+set(CMAKE_CXX_STANDARD 14)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
+
 option(ENABLE_MPI "Enable MPI support" OFF)
 
 # Find the VTK-m package
@@ -33,9 +37,11 @@ endif()
 set(UTIL_HEADERS
   utils/CommandLineArgParser.h
   utils/ReadData.h
+  utils/Debug.h
   utils/WriteData.h)
 set(UTIL_SRC
   utils/ReadData.cxx
+  utils/Debug.cxx
   utils/WriteData.cxx)
 
 set(UTIL_FILES ${UTIL_HEADERS} ${UTIL_SRC})
@@ -78,5 +84,5 @@ target_link_libraries(converter PRIVATE ${LINK_LIBS})
 #target_link_libraries(hello PRIVATE MPI::MPI_CXX)
 
 ## examples
-#add_subdirectory(examples)
+add_subdirectory(examples)
 

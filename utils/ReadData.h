@@ -7,6 +7,11 @@
 #include <fides/DataSetReader.h>
 #include <boost/program_options.hpp>
 
+#ifdef ENABLE_MPI
+#include <mpi.h>
+#endif
+
+
 namespace xenia
 {
 namespace utils
@@ -16,29 +21,8 @@ class DataSetReader
   public:
   DataSetReader(const boost::program_options::variables_map& vm);
 
-  void Init()
-  { 
-    this->MetaData = this->FidesReader->ReadMetaData(this->Paths);
-    this->InitCalled = true;
-
-    //For BPfile method...
-    if (this->EngineType == "BP5")
-    {
-      if (this->MetaData.Has(fides::keys::NUMBER_OF_STEPS()))
-        this->NumSteps = this->MetaData.Get<fides::metadata::Size>(fides::keys::NUMBER_OF_STEPS()).NumberOfItems;
-      else
-        this->NumSteps = 1;
-      std::cout<<"***** NSTEPS= "<<this->NumSteps<<std::endl;
-    }
-    else if (this->EngineType == "SST")
-    {
-      std::cout<<"SST init."<<std::endl;
-    }
-
-  }
-
+  void Init();
   vtkm::Id GetNumSteps() const { return this->NumSteps; }
-
   vtkm::cont::PartitionedDataSet Read();
 
   fides::StepStatus BeginStep()
@@ -72,15 +56,23 @@ class DataSetReader
   }
 
 
+private:
+  void SetBlocksMetaData(fides::metadata::MetaData& md) const;
+  void InitBlockSelection();
+
   vtkm::Id Step = 0;
   std::unique_ptr<fides::io::DataSetReader> FidesReader;
   std::unordered_map<std::string, std::string> Paths;
   fides::metadata::MetaData MetaData;
+  std::vector<std::size_t> BlockSelection;
   std::string JSONFile = "";
   std::string FileName = "";
   std::string EngineType = "BP5";
   bool InitCalled = false;
   vtkm::Id NumSteps = 0;
+
+  int Rank = 0;
+  int NumRanks = 1;
 
   static const std::set<std::string> ValidEngineTypes;
 };

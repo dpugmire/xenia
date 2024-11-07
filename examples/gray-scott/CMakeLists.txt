@@ -3,6 +3,8 @@
 # accompanying file Copyright.txt for details.
 #------------------------------------------------------------------------------#
 
+find_package(ADIOS2 REQUIRED QUIET)
+
 add_executable(gray-scott
  main.cpp
  gray-scott.cpp
