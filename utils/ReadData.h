@@ -11,7 +11,6 @@
 #include <mpi.h>
 #endif
 
-
 namespace xenia
 {
 namespace utils
@@ -24,6 +23,8 @@ class DataSetReader
   void Init();
   vtkm::Id GetNumSteps() const { return this->NumSteps; }
   vtkm::cont::PartitionedDataSet Read();
+
+  int GetRank() const { return this->Rank;}
 
   fides::StepStatus BeginStep()
   {

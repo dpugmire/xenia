@@ -8,6 +8,10 @@
 #include <string>
 #include <regex>
 
+#ifdef ENABLE_MPI
+#include <mpi.h>
+#endif
+
 namespace xenia
 {
 namespace utils
@@ -54,6 +58,7 @@ class DataSetWriter
   DataSetWriter(const boost::program_options::variables_map& vm);
 
   bool WriteDataSet(const vtkm::cont::PartitionedDataSet& pds);
+
   void BeginStep() {}
   void EndStep() {this->Step++;}
   void Close();
@@ -61,7 +66,7 @@ class DataSetWriter
   void SetTimeVaryingOutput(bool val) { this->TimeVaryingOutput = val; }
   bool GetTimeVaryingOutput() const { return this->TimeVaryingOutput; }
 
-  enum OutputFileType 
+  enum OutputFileType
   {
     NONE = 0,
     VTK = 1,
@@ -69,14 +74,21 @@ class DataSetWriter
     SST = 3,
   };
 
-  bool WriteVTK(const vtkm::cont::PartitionedDataSet& pds);  
-  bool WriteBP(const vtkm::cont::PartitionedDataSet& pds);    
+  bool WriteVTK(const vtkm::cont::PartitionedDataSet& pds);
+  bool WriteBP(const vtkm::cont::PartitionedDataSet& pds);
+
+  private:
+  void CreateVisItFile(int totalNumDS) const;
+  std::vector<std::string> GetVTKOutputFileNames(int totalNumDS, int blk0, int blk1) const;
 
   OutputFileType OutputType = OutputFileType::NONE;
   std::string OutputFileName;
   std::unique_ptr<fides::io::DataSetAppendWriter> Writer;
   vtkm::Id Step = 0;
   bool TimeVaryingOutput = false;
+
+  int Rank = 0;
+  int NumRanks = 1;
 };
 
 

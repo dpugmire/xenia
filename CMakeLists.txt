@@ -66,6 +66,9 @@ list(APPEND LINK_LIBS "xenia_utils")
 add_executable(converter converter.cxx)
 target_link_libraries(converter PRIVATE ${LINK_LIBS})
 
+add_executable(gradient gradient.cxx)
+target_link_libraries(gradient PRIVATE ${LINK_LIBS} vtkm::filter_vector_analysis)
+
 #target_link_libraries(converter PRIVATE xenia_utils ${Boost_LIBRARIES} fides vtkm::io vtkm::filter_contour adios2::adios2)
 
 #add_executable(ext_faces ext_faces.cxx)
