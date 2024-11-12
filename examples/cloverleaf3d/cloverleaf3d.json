@@ -1,0 +1,103 @@
+{
+  "CloverLeaf3d_Grid": {
+    "data_sources": [
+      {
+      "name": "source",
+      "filename_mode": "input"
+      }
+    ],
+    "coordinate_system" : {
+      "array" : {
+        "array_type" : "cartesian_product",
+        "x_array" : {
+          "array_type" : "basic",
+          "data_source": "source",
+          "variable" : "coordsX"
+          },
+        "y_array" : {
+          "array_type" : "basic",
+          "data_source": "source",
+          "variable" : "coordsY"
+          },
+        "z_array" : {
+          "array_type" : "basic",
+          "data_source": "source",
+          "variable" : "coordsZ"
+          }
+      }
+    },
+    "cell_set": {
+      "cell_set_type" : "structured",
+        "dimensions" : {
+          "source" : "variable_dimensions",
+          "data_source": "source",
+          "variable" : "scalars"
+          }
+    },
+    "fields": [
+      {
+        "name": "density",
+        "association": "cells",
+        "array" : {
+          "array_type" : "basic",
+          "data_source": "source",
+          "variable" : "density"
+        }
+      },
+      {
+        "name": "energy",
+        "association": "cells",
+        "array" : {
+          "array_type" : "basic",
+          "data_source": "source",
+          "variable" : "energy"
+        }
+      },
+      {
+        "name": "pressure",
+        "association": "cells",
+        "array" : {
+          "array_type" : "basic",
+          "data_source": "source",
+          "variable" : "pressure"
+        }
+      },
+      {
+        "name": "vtkGhostCells",
+        "association": "cells",
+        "array" : {
+          "array_type" : "basic",
+          "data_source": "source",
+          "variable" : "ghost_zones"
+        }
+      },	
+      {
+        "name": "velocityX",
+        "association": "points",
+        "array" : {
+          "array_type" : "basic",
+          "data_source": "source",
+          "variable" : "velocityX"
+        }
+      },
+      {
+        "name": "velocityY",
+        "association": "points",
+        "array" : {
+          "array_type" : "basic",
+          "data_source": "source",
+          "variable" : "velocityY"
+        }
+      },			
+      {
+        "name": "velocityZ",
+        "association": "points",
+        "array" : {
+          "array_type" : "basic",
+          "data_source": "source",
+          "variable" : "velocityX"
+        }
+      }
+    ]
+  }
+}
