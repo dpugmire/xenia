@@ -52,6 +52,27 @@ std::vector<vtkm::Particle> GetSeeds(const boost::program_options::variables_map
 
   if (particles.empty())
   {
+    if (!vm["seed-grid-bounds"].empty())
+    {
+      auto b =
+        String2Vec<vtkm::Vec<vtkm::Float64, 6>>(vm["seed-grid-bounds"].as<std::string>());
+      vtkm::Bounds bounds{ b[0], b[1], b[2], b[3], b[4], b[5] };
+      vtkm::IdComponent3 dims{ 10, 10, 10 };
+      if (!vm["seed-grid-dims"].empty())
+      {
+        String2Vec(vm["seed-grid-dims"].as<std::string>(), dims);
+      }
+
+      particles.reserve(dims[0] * dims[1] * dims[2]);
+
+      auto minCorner = bounds.MinCorner();
+      auto spacing = (bounds.MaxCorner() - minCorner) / static_cast<vtkm::Vec3f_64>(dims);
+      for (vtkm::IdComponent zIndex = 0; zIndex < dims[2]; ++zIndex)
+        for (vtkm::IdComponent yIndex = 0; yIndex < dims[1]; ++yIndex)
+          for (vtkm::IdComponent xIndex = 0; xIndex < dims[0]; ++xIndex)
+            particles.emplace_back(vtkm::Vec3f_64(xIndex, yIndex, zIndex) * spacing + minCorner,
+                                   static_cast<vtkm::Id>(particles.size()));
+    }
     if (vm.count("seed-point") > 0)
       for (auto&& pos_string : vm["seed-point"].as<std::vector<std::string>>())
       {
@@ -182,6 +203,8 @@ int main(int argc, char** argv)
     ("output", po::value<std::string>(), "Output file.")
     ("field", po::value<std::string>(), "field name in input data")
     ("seed-point,s", po::value<std::vector<std::string>>(), "Seed point location. Separate components with spaces or commas. Can be specified multiple times for multiple seeds.")
+    ("seed-grid-bounds", po::value<std::string>(), "Specify a the bounds for a grid of seed points. The values are specified as `minx maxx miny maxy minz maxz`.")
+    ("seed-grid-dims", po::value<std::string>(), "Specify the number of seed points in each dimension of the seed grid. The values are specified as `numx numy numz`.")
     ("step-size", po::value<vtkm::FloatDefault>(), "Step size for particle advection.")
     ("max-steps", po::value<vtkm::Id>(), "Maximum number of steps.")
     ("tube-size", po::value<vtkm::FloatDefault>(), "If specified, create tube geometry with the given radius.")
