@@ -16,16 +16,23 @@ const std::set<std::string> DataSetReader::ValidEngineTypes({"BP5", "SST"});
 DataSetReader::DataSetReader(const boost::program_options::variables_map& vm)
 {
   std::cout<<"building dataset reader."<<std::endl;
-  this->FileName = vm["file"].as<std::string>();
-  if (this->FileName.find(".bp") == std::string::npos)
-    throw std::string("Error. Only BP files supported.");
+  if (!vm["file"].empty())
+  {
+    this->FileName = vm["file"].as<std::string>();
+    if (this->FileName.find(".bp") == std::string::npos)
+      throw std::runtime_error("Error. Only BP files supported.");
+    this->Paths["source"] = this->FileName;
+  }
+  else if (vm["json"].empty())
+  {
+    throw std::runtime_error("Error. Must specify --file or --json (or both).");
+  }
 
   if (!vm["input_engine"].empty())
     this->EngineType = vm["input_engine"].as<std::string>();
   if (this->ValidEngineTypes.find(this->EngineType) == this->ValidEngineTypes.end())
     throw std::runtime_error("Invalid engine type: " + this->EngineType);
 
-  this->Paths["source"] = this->FileName;
   this->Paths["engine_type"] = this->EngineType;
 
   if (vm.count("json") == 1)
