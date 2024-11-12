@@ -145,13 +145,19 @@ int main(int argc, char** argv)
     ("file", po::value<std::string>(), "Input file")
     ("json", po::value<std::string>(), "Fides JSON data model file")
     ("output", po::value<std::string>(), "Output file")
-    ("input_engine", po::value<std::string>(), "Adios2 input engine type (BP or SST")
-    ("output_engine", po::value<std::string>(), "Adios2 output engine type (BP or SST")
+    ("input_engine", po::value<std::string>(), "Adios2 input engine type (BP or SST)")
+    ("output_engine", po::value<std::string>(), "Adios2 output engine type (BP or SST)")
     ;
 
   po::variables_map vm;
   po::store(po::parse_command_line(argc, argv, desc), vm);
   po::notify(vm);
+
+  if (vm.count("help"))
+  {
+    std::cout << desc << "\n";
+    return 1;
+  }
 
   std::string engineType = "BP5";
   if (!vm["input_engine"].empty())
