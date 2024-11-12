@@ -80,6 +80,9 @@ target_link_libraries(gradient PRIVATE ${LINK_LIBS} vtkm::filter_vector_analysis
 #add_executable(cropper cropper.cxx)
 #target_link_libraries(cropper PRIVATE xenia_utils ${Boost_LIBRARIES} fides vtkm::io adios2::adios2 MPI::MPI_CXX MPI::MPI_C)
 
+add_executable(streamlines streamlines.cxx)
+target_link_libraries(streamlines PRIVATE xenia_utils ${Boost_LIBRARIES} fides vtkm::filter_flow vtkm::filter_geometry_refinement)
+
 #add_executable(render render.cxx)
 #target_link_libraries(render PRIVATE xenia_utils ${Boost_LIBRARIES} fides vtkm::io vtkm::rendering vtkm::source vtkm::filter_contour adios2::adios2 MPI::MPI_CXX MPI::MPI_C)
 
