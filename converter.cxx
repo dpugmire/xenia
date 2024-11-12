@@ -8,14 +8,30 @@
 #include "utils/ReadData.h"
 #include "utils/WriteData.h"
 
+#include <vtkm/io/VTKDataSetReader.h>
+
 #include <fides/DataSetReader.h>
 
 static void
-RunService(xenia::utils::DataSetWriter& writer, vtkm::cont::PartitionedDataSet& pds, const boost::program_options::variables_map& /*vm*/)
+RunService(xenia::utils::DataSetWriter& writer, const vtkm::cont::PartitionedDataSet& pds, const boost::program_options::variables_map& /*vm*/)
 {
   writer.BeginStep();
   writer.WriteDataSet(pds);
   writer.EndStep();
+}
+
+static void
+RunVTK(const boost::program_options::variables_map& vm)
+{
+  std::cout << "RunVTK" << std::endl;
+  vtkm::io::VTKDataSetReader reader(vm["file"].as<std::string>());
+  xenia::utils::DataSetWriter writer(vm);
+
+  auto output = reader.ReadDataSet();
+
+  RunService(writer, vtkm::cont::PartitionedDataSet{ output }, vm);
+
+  writer.Close();
 }
 
 static void
@@ -145,7 +161,7 @@ int main(int argc, char** argv)
     ("file", po::value<std::string>(), "Input file")
     ("json", po::value<std::string>(), "Fides JSON data model file")
     ("output", po::value<std::string>(), "Output file")
-    ("input_engine", po::value<std::string>(), "Adios2 input engine type (BP or SST)")
+    ("input_engine", po::value<std::string>(), "Adios2 input engine type (BP, SST, or VTK)")
     ("output_engine", po::value<std::string>(), "Adios2 output engine type (BP or SST)")
     ;
 
@@ -165,8 +181,15 @@ int main(int argc, char** argv)
 
   if (engineType == "SST")
     RunSST(vm);
-  else
+  else if (engineType == "BP")
     RunBP(vm);
+  else if (engineType == "VTK")
+    RunVTK(vm);
+  else
+  {
+    std::cout << "Unknown engine type: `" << engineType << "`\n";
+    return 1;
+  }
 
 #ifdef ENABLE_MPI
   MPI_Finalize();
