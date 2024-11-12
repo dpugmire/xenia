@@ -19,6 +19,8 @@ DataSetWriter::DataSetWriter(const boost::program_options::variables_map& vm)
   MPI_Comm_size(MPI_COMM_WORLD, &this->NumRanks);
 #endif
 
+    if (vm["output"].empty())
+      throw std::runtime_error("No `--output` argument specified.");
     this->OutputFileName = vm["output"].as<std::string>();
     if (this->OutputFileName.find(".vtk") != std::string::npos)
         this->OutputType = OutputFileType::VTK;
