@@ -161,7 +161,6 @@ RunBP(const boost::program_options::variables_map& vm)
   vtkm::Id numSteps = reader.GetNumSteps();
   for (vtkm::Id step = 0; step < numSteps; step++)
   {
-    reader.Step = step;
     auto output = reader.ReadDataSet(step);
 
     RunService(step, writer, output, vm);

@@ -41,7 +41,6 @@ int main(int argc, char** argv)
     vtkm::Id numSteps = reader.GetNumSteps();
     for (vtkm::Id step = 0; step < numSteps; step++)
     {
-      reader.Step = step;
       auto output = reader.ReadDataSet(step);
 
       std::cout<<"Step: "<<step<<" num ds= "<<output.GetNumberOfPartitions()<<std::endl;
