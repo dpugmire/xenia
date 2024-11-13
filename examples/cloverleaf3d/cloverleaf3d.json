@@ -1,11 +1,14 @@
 {
-  "CloverLeaf3d_Grid": {
+  "VTK-Cartesian-grid": {    
     "data_sources": [
       {
       "name": "source",
       "filename_mode": "input"
       }
     ],
+    "step_information" : {
+        "data_source" : "source"
+    },
     "coordinate_system" : {
       "array" : {
         "array_type" : "cartesian_product",
@@ -31,13 +34,13 @@
         "dimensions" : {
           "source" : "variable_dimensions",
           "data_source": "source",
-          "variable" : "scalars"
+          "variable" : "velocityX"
           }
     },
     "fields": [
       {
         "name": "density",
-        "association": "cells",
+        "association": "cell_set",
         "array" : {
           "array_type" : "basic",
           "data_source": "source",
@@ -46,7 +49,7 @@
       },
       {
         "name": "energy",
-        "association": "cells",
+        "association": "cell_set",
         "array" : {
           "array_type" : "basic",
           "data_source": "source",
@@ -55,7 +58,7 @@
       },
       {
         "name": "pressure",
-        "association": "cells",
+        "association": "cell_set",
         "array" : {
           "array_type" : "basic",
           "data_source": "source",
@@ -64,7 +67,7 @@
       },
       {
         "name": "vtkGhostCells",
-        "association": "cells",
+        "association": "cell_set",
         "array" : {
           "array_type" : "basic",
           "data_source": "source",
@@ -95,7 +98,7 @@
         "array" : {
           "array_type" : "basic",
           "data_source": "source",
-          "variable" : "velocityX"
+          "variable" : "velocityZ"
         }
       }
     ]
