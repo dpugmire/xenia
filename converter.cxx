@@ -9,7 +9,7 @@
 #include "utils/WriteData.h"
 
 #include <vtkm/io/VTKDataSetReader.h>
-
+#include <vtkm/CellClassification.h>
 #include <fides/DataSetReader.h>
 
 static void
@@ -107,14 +107,13 @@ if (0)
     else if (status == fides::StepStatus::OK)
     {
       std::cout<<"SST read step= "<<step<<std::endl;
-      auto output = reader.ReadDataSet();
+      auto output = reader.Read();
       std::cout<<"    np= "<<output.GetNumberOfPartitions()<<std::endl;
       step++;
     }
     else
       throw std::runtime_error("Unexpected status.");
   }
-
 
   /*
 
@@ -160,6 +159,7 @@ int main(int argc, char** argv)
     ("help", "produce help message")
     ("file", po::value<std::string>(), "Input file")
     ("json", po::value<std::string>(), "Fides JSON data model file")
+    ("remove-ghost-cells", po::value<std::string>(), "Remove ghost cells from dataset (specify the field name)")
     ("output", po::value<std::string>(), "Output file")
     ("input_engine", po::value<std::string>(), "Adios2 input engine type (BP, SST, or VTK)")
     ("output_engine", po::value<std::string>(), "Adios2 output engine type (BP or SST)")
@@ -175,7 +175,7 @@ int main(int argc, char** argv)
     return 1;
   }
 
-  std::string engineType = "BP5";
+  std::string engineType = "BP";
   if (!vm["input_engine"].empty())
     engineType = vm["input_engine"].as<std::string>();
 

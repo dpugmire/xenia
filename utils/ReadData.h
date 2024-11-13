@@ -47,19 +47,31 @@ class DataSetReader
   {
     auto selections = this->MetaData;
     selections.Set(fides::keys::STEP_SELECTION(), fides::metadata::Index(step));
-    return this->FidesReader->ReadDataSet(this->Paths, selections);
+    auto output = this->FidesReader->ReadDataSet(this->Paths, selections);
+
+    if (this->RemoveGhostCells)
+      output = this->RunRemoveGhostCells(output);
+
+    return output;
   }
 
   vtkm::cont::PartitionedDataSet
   ReadDataSet()
   {
-    return this->FidesReader->ReadDataSet(this->Paths, this->MetaData);
+    auto output = this->FidesReader->ReadDataSet(this->Paths, this->MetaData);
+
+    if (this->RemoveGhostCells)
+      output = this->RunRemoveGhostCells(output);
+    output.PrintSummary(std::cout);
+    return output;
   }
 
 
 private:
   void SetBlocksMetaData(fides::metadata::MetaData& md) const;
   void InitBlockSelection();
+
+  vtkm::cont::PartitionedDataSet RunRemoveGhostCells(const vtkm::cont::PartitionedDataSet& input) const;
 
   vtkm::Id Step = 0;
   std::unique_ptr<fides::io::DataSetReader> FidesReader;
@@ -71,6 +83,9 @@ private:
   std::string EngineType = "BP5";
   bool InitCalled = false;
   vtkm::Id NumSteps = 0;
+
+  bool RemoveGhostCells = false;
+  std::string GhostCellFieldName = "";
 
   int Rank = 0;
   int NumRanks = 1;

@@ -3,6 +3,7 @@
 
 #include <vtkm/cont/PartitionedDataSet.h>
 #include <vtkm/io/VTKDataSetReader.h>
+#include <vtkm/filter/entity_extraction/GhostCellRemove.h>
 
 #include <fides/DataSetReader.h>
 
@@ -49,36 +50,12 @@ DataSetReader::DataSetReader(const boost::program_options::variables_map& vm)
     //this->FidesReader = std::unique_ptr<fides::io::DataSetReader>(new fides::io::DataSetReader(this->FileName));
   }
 
-#ifdef ENABLE_MPI
-  MPI_Comm_rank(MPI_COMM_WORLD, &this->Rank);
-  MPI_Comm_size(MPI_COMM_WORLD, &this->NumRanks);
-#endif
-
-  //Get number of blocks from the Source.
-  /*
-  auto& nBlocks = this->MetaData.Get<fides::metadata::Size>(fides::keys::NUMBER_OF_BLOCKS());
-  const auto& sourceNames = this->FidesReader->GetDataSourceNames();
-  if (sourceNames.empty())
-    throw std::string("Error. No data sources");
-  */
-
-#if 0
-  this->BlockSelection.clear();
-  if (rank == 0)
+  if (!vm["remove-ghost-cells"].empty())
   {
-    this->BlockSelection.push_back(0);
-    this->BlockSelection.push_back(1);
-    this->BlockSelection.push_back(2);
+    this->RemoveGhostCells = true;
+    this->GhostCellFieldName = vm["remove-ghost-cells"].as<std::string>();
+    std::cout<<"Removing ghost cells: "<<this->GhostCellFieldName<<std::endl;
   }
-  else
-  {
-    //this->BlockSelection.push_back(3);
-    //this->BlockSelection.push_back(4);
-    //this->BlockSelection.push_back(5);
-    //this->BlockSelection.push_back(6);
-    this->BlockSelection.push_back(7);
-  }
-  #endif
 }
 
 void
@@ -168,7 +145,24 @@ vtkm::cont::PartitionedDataSet DataSetReader::Read()
     md.Set(fides::keys::BLOCK_SELECTION(), blockSel);
   }
 
-  return this->FidesReader->ReadDataSet(this->Paths, md);
+  auto output = this->FidesReader->ReadDataSet(this->Paths, md);
+  if (this->RemoveGhostCells)
+    output = this->RunRemoveGhostCells(output);
+
+  return output;
+}
+
+vtkm::cont::PartitionedDataSet DataSetReader::RunRemoveGhostCells(const vtkm::cont::PartitionedDataSet& input) const
+{
+  //return input;
+
+  #if 1
+  vtkm::filter::entity_extraction::GhostCellRemove filter;
+  if (this->GhostCellFieldName.size() > 0)
+    filter.SetActiveField(this->GhostCellFieldName);
+
+  return filter.Execute(input);
+  #endif
 }
 
 }

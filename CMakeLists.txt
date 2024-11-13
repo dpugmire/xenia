@@ -46,7 +46,7 @@ set(UTIL_SRC
 
 set(UTIL_FILES ${UTIL_HEADERS} ${UTIL_SRC})
 add_library(xenia_utils SHARED ${UTIL_SRC} ${UTIL_SRC})
-target_link_libraries(xenia_utils PRIVATE ${LINK_LIBS})
+target_link_libraries(xenia_utils PRIVATE ${LINK_LIBS} vtkm::filter_entity_extraction)
 
 list(APPEND LINK_LIBS "xenia_utils")
 
@@ -64,10 +64,11 @@ list(APPEND LINK_LIBS "xenia_utils")
 #target_link_libraries(contour PRIVATE ${Boost_LIBRARIES} xenia_utils fides vtkm::io vtkm::filter_contour adios2::adios2 MPI::MPI_CXX MPI::MPI_C)
 
 add_executable(converter converter.cxx)
+#target_link_libraries(converter PRIVATE ${LINK_LIBS} vtkm::filter_entity_extraction)
 target_link_libraries(converter PRIVATE ${LINK_LIBS})
 
-add_executable(gradient gradient.cxx)
-target_link_libraries(gradient PRIVATE ${LINK_LIBS} vtkm::filter_vector_analysis)
+#add_executable(gradient gradient.cxx)
+#target_link_libraries(gradient PRIVATE ${LINK_LIBS} vtkm::filter_vector_analysis)
 
 #target_link_libraries(converter PRIVATE xenia_utils ${Boost_LIBRARIES} fides vtkm::io vtkm::filter_contour adios2::adios2)
 
@@ -81,7 +82,7 @@ target_link_libraries(gradient PRIVATE ${LINK_LIBS} vtkm::filter_vector_analysis
 #target_link_libraries(cropper PRIVATE xenia_utils ${Boost_LIBRARIES} fides vtkm::io adios2::adios2 MPI::MPI_CXX MPI::MPI_C)
 
 add_executable(streamlines streamlines.cxx)
-target_link_libraries(streamlines PRIVATE xenia_utils ${Boost_LIBRARIES} fides vtkm::filter_flow vtkm::filter_geometry_refinement vtkm::filter_field_transform)
+target_link_libraries(streamlines PRIVATE ${LINK_LIBS} vtkm::filter_flow vtkm::filter_geometry_refinement vtkm::filter_field_transform)
 
 #add_executable(render render.cxx)
 #target_link_libraries(render PRIVATE xenia_utils ${Boost_LIBRARIES} fides vtkm::io vtkm::rendering vtkm::source vtkm::filter_contour adios2::adios2 MPI::MPI_CXX MPI::MPI_C)
