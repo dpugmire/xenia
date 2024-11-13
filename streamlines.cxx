@@ -8,6 +8,7 @@
 #include <fides/DataSetReader.h>
 #include <fides/DataSetWriter.h>
 
+#include <vtkm/filter/field_transform/CompositeVectors.h>
 #include <vtkm/filter/flow/Streamline.h>
 #include <vtkm/filter/geometry_refinement/Tube.h>
 
@@ -46,7 +47,27 @@ static T String2Vec(const std::string& s)
   return vec;
 }
 
-std::vector<vtkm::Particle> GetSeeds(const boost::program_options::variables_map& vm)
+static const std::vector<std::string>& GetComponentFieldList(const boost::program_options::variables_map& vm)
+{
+  static std::vector<std::string> componentNames;
+
+  if (componentNames.empty())
+  {
+    componentNames.reserve(3);
+    for (const std::string& axisName : { "x", "y", "z" })
+    {
+      std::string argname = "field" + axisName;
+      if (!vm[argname].empty())
+      {
+        componentNames.push_back(vm[argname].as<std::string>());
+      }
+    }
+  }
+
+  return componentNames;
+}
+
+static const std::vector<vtkm::Particle>& GetSeeds(const boost::program_options::variables_map& vm)
 {
   static std::vector<vtkm::Particle> particles;
 
@@ -95,9 +116,28 @@ std::vector<vtkm::Particle> GetSeeds(const boost::program_options::variables_map
 }
 
 static void
-RunService(const vtkm::Id& step, xenia::utils::DataSetWriter& writer, vtkm::cont::PartitionedDataSet& pds, const boost::program_options::variables_map& vm)
+RunService(const vtkm::Id& step,
+           xenia::utils::DataSetWriter& writer,
+           const vtkm::cont::PartitionedDataSet& pds,
+           const boost::program_options::variables_map& vm)
 {
-  std::string fieldName = GetParam<std::string>(vm, "field");
+  vtkm::cont::PartitionedDataSet input = pds;
+  std::string fieldName;
+  if (!vm["field"].empty())
+  {
+    fieldName = vm["field"].as<std::string>();
+  } else if (!vm["fieldx"].empty()) {
+    vtkm::filter::field_transform::CompositeVectors combineVec;
+    combineVec.SetFieldNameList(GetComponentFieldList(vm));
+    combineVec.SetOutputFieldName("_xenia_vec_");
+
+    input = combineVec.Execute(input);
+    fieldName = combineVec.GetOutputFieldName();
+  } else {
+    throw std::runtime_error(
+      "Must provide either `--field` or `--fieldx`, `--fieldy`, and `--fieldz` arguments.");
+  }
+
   auto seeds = GetSeeds(vm);
 
   vtkm::filter::flow::Streamline streamline;
@@ -106,7 +146,7 @@ RunService(const vtkm::Id& step, xenia::utils::DataSetWriter& writer, vtkm::cont
   streamline.SetNumberOfSteps(GetParam<vtkm::Id>(vm, "max-steps"));
   streamline.SetActiveField(fieldName);
 
-  auto result = streamline.Execute(pds);
+  auto result = streamline.Execute(input);
 
   if (!vm["tube-size"].empty())
   {
@@ -201,7 +241,10 @@ int main(int argc, char** argv)
     ("file", po::value<std::string>(), "Input Fides bp file.")
     ("json", po::value<std::string>(), "Fides JSON data model file.")
     ("output", po::value<std::string>(), "Output file.")
-    ("field", po::value<std::string>(), "field name in input data")
+    ("field", po::value<std::string>(), "Name of vector field in input data.")
+    ("fieldx", po::value<std::string>(), "Name of x component of vector field in input data.")
+    ("fieldy", po::value<std::string>(), "Name of x component of vector field in input data.")
+    ("fieldz", po::value<std::string>(), "Name of x component of vector field in input data.")
     ("seed-point,s", po::value<std::vector<std::string>>(), "Seed point location. Separate components with spaces or commas. Can be specified multiple times for multiple seeds.")
     ("seed-grid-bounds", po::value<std::string>(), "Specify a the bounds for a grid of seed points. The values are specified as `minx maxx miny maxy minz maxz`.")
     ("seed-grid-dims", po::value<std::string>(), "Specify the number of seed points in each dimension of the seed grid. The values are specified as `numx numy numz`.")
