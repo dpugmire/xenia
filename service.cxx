@@ -13,16 +13,120 @@
 #include <vtkm/CellClassification.h>
 #include <fides/DataSetReader.h>
 
+#include <vtkm/filter/contour/Contour.h>
+
+
+static std::string
+CreateVisItFile(const std::string& outputFileName, int totalNumDS, int step)
+{
+  auto pos = outputFileName.find(".vtk");
+  auto VisItFileName = outputFileName;
+  std::string pattern(".visit");
+  VisItFileName.replace(pos, pattern.size(), pattern);
+
+  if (step == 0)
+  {
+    std::ofstream fout(VisItFileName);
+    fout<<"!NBLOCKS "<<totalNumDS<<std::endl;
+    fout.close();
+  }
+
+  return VisItFileName;
+}
+std::vector<std::string>
+GetVTKOutputFileNames(std::string& outputFileName, int timestep, int totalNumDS, int blk0, int blk1)
+{
+  std::vector<std::string> outputFileNames;
+
+  std::string fname;
+
+  auto pos = outputFileName.find(".vtk");
+  std::string pattern(".ts_%d_ds_%d.vtk");
+  outputFileName.replace(pos, pattern.size(), pattern);
+  char buffer[128];
+  for (int i = blk0; i < blk1; i++)
+  {
+      snprintf(buffer, sizeof(buffer), outputFileName.c_str(), timestep, i);
+      outputFileNames.push_back(buffer);
+  }
+
+  return outputFileNames;
+}
+
+static void
+AppendVTKFiles(const std::string& visitFileName, const std::vector<std::string>& fileNames)
+{
+  auto fout = std::ofstream(visitFileName, std::ios::app);
+  for (const auto& fileName : fileNames)
+      fout<<fileName<<std::endl;
+
+  fout.close();
+}
+
+static bool
+WriteVTK(const vtkm::cont::PartitionedDataSet& pds,
+         int step,
+         const boost::program_options::variables_map& vm)
+{
+  std::cout<<"WriteVTK: step= "<<step<<std::endl;
+  std::string outputFileName = vm["vtkfile"].as<std::string>();
+
+  int localNumDS = static_cast<int>(pds.GetNumberOfPartitions());
+  int totalNumDS = localNumDS;
+  int b0 = 0, b1 = localNumDS;
+
+  if (totalNumDS == 0)
+      return false;
+
+  auto visitFileName = CreateVisItFile(outputFileName, totalNumDS, step);
+  auto outputFileNames = GetVTKOutputFileNames(outputFileName, step, totalNumDS, 0, totalNumDS);
+  AppendVTKFiles(visitFileName, outputFileNames);
+
+  int blkIdx = 0;
+  for (const auto& ds : pds.GetPartitions())
+  {
+      vtkm::io::VTKDataSetWriter writer(outputFileNames[blkIdx]);
+      writer.WriteDataSet(ds);
+      blkIdx++;
+  }
+
+  return true;
+}
+
 static vtkm::cont::PartitionedDataSet
-RunService(const vtkm::cont::PartitionedDataSet& input,
+RunService(int step,
+           const vtkm::cont::PartitionedDataSet& input,
 	         const boost::program_options::variables_map& vm)
 {
   auto serviceType = vm["service"].as<std::string>();
 
   vtkm::cont::PartitionedDataSet output;
   if (serviceType == "copier")
+  {
     output = input;
+  }
+  else if (serviceType == "converter")
+  {
+    WriteVTK(input, step, vm);
+    output = input;
+  }
+  else if (serviceType == "contour")
+  {
+    std::string fieldName = vm["field"].as<std::string>();
+    auto isoVals = vm["isovals"].as<std::vector<vtkm::FloatDefault>>();
 
+    vtkm::filter::contour::Contour contour;
+    contour.SetGenerateNormals(false);
+
+    contour.SetActiveField(fieldName);
+    for (int i = 0; i < isoVals.size(); i++)
+      contour.SetIsoValue(i, isoVals[i]);
+
+    vtkm::filter::FieldSelection selection(vtkm::filter::FieldSelection::Mode::All);
+    contour.SetFieldsToPass(selection);
+
+    output = contour.Execute(input);
+  }
 
   return output;
 }
@@ -130,9 +234,7 @@ RunBPBP(const boost::program_options::variables_map& vm)
     selections.Set(fides::keys::STEP_SELECTION(), fides::metadata::Index(step));
 
     auto input = reader.ReadDataSet(paths, selections);
-    //input.PrintSummary(std::cout);
-
-    auto output = RunService(input, vm);
+    auto output = RunService(step, input, vm);
     writer.Write(output, outputEngineType);
   }
 }
@@ -182,7 +284,8 @@ RunBPSST(const boost::program_options::variables_map& vm)
     auto input = reader.ReadDataSet(paths, selections);
     //input.PrintSummary(std::cout);
 
-    auto output = RunService(input, vm);
+    auto output = RunService(step, input, vm);
+
     writer.Write(output, outputEngineType);
   }
 //  reader.Close();
@@ -242,7 +345,7 @@ RunSSTBP(const boost::program_options::variables_map& vm)
     auto input = reader.ReadDataSet(paths, selections);
     //input.PrintSummary(std::cout);
 
-    auto output = RunService(input, vm);
+    auto output = RunService(step, input, vm);
     writer.Write(output, outputEngineType);
     step++;
   }
@@ -301,7 +404,7 @@ RunSSTSST(const boost::program_options::variables_map& vm)
     auto input = reader.ReadDataSet(paths, selections);
     //input.PrintSummary(std::cout);
 
-    auto output = RunService(input, vm);
+    auto output = RunService(step, input, vm);
     writer.Write(output, outputEngineType);
     step++;
   }
@@ -574,6 +677,15 @@ int main(int argc, char** argv)
     ("service", po::value<std::string>(), "Type of service to run (copier, streamline, contour, render)")
     ;
 
+    //converter
+    desc.add_options() ("vtkfile", po::value<std::string>(), "VTK output file");
+
+    //contour
+    desc.add_options()
+      ("field", po::value<std::string>(), "field name in input data")
+      ("isovals", po::value<std::vector<vtkm::FloatDefault>>(), "Isosurface values")
+      ;
+
   po::variables_map vm;
   po::store(po::parse_command_line(argc, argv, desc), vm);
   po::notify(vm);
@@ -596,14 +708,12 @@ int main(int argc, char** argv)
   std::string serviceType = vm["service"].as<std::string>();
   if (serviceType == "copier")
   {
-
+  }
+  else if (serviceType == "converter")
+  {
   }
   else if (serviceType == "contour")
   {
-    desc.add_options()
-      ("field", po::value<std::string>(), "field name in input data")
-      ("isovals", po::value<std::vector<vtkm::FloatDefault>>(), "Isosurface values")
-      ;
   }
   else
   {

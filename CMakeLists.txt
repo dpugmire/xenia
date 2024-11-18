@@ -69,7 +69,7 @@ target_link_libraries(converter PRIVATE ${LINK_LIBS})
 
 add_executable(service service.cxx)
 #target_link_libraries(converter PRIVATE ${LINK_LIBS} vtkm::filter_entity_extraction)
-target_link_libraries(service PRIVATE ${LINK_LIBS})
+target_link_libraries(service PRIVATE ${LINK_LIBS} vtkm::filter_contour)
 
 #add_executable(gradient gradient.cxx)
 #target_link_libraries(gradient PRIVATE ${LINK_LIBS} vtkm::filter_vector_analysis)
