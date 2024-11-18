@@ -14,7 +14,8 @@
 #include <fides/DataSetReader.h>
 
 #include <vtkm/filter/contour/Contour.h>
-
+#include <vtkm/filter/field_conversion/PointAverage.h>
+#include <vtkm/filter/field_conversion/CellAverage.h>
 
 static std::string
 CreateVisItFile(const std::string& outputFileName, int totalNumDS, int step)
@@ -103,6 +104,7 @@ RunService(int step,
   vtkm::cont::PartitionedDataSet output;
   if (serviceType == "copier")
   {
+    std::cout<<"Copier: step= "<<step<<std::endl;
     output = input;
   }
   else if (serviceType == "converter")
@@ -112,8 +114,21 @@ RunService(int step,
   }
   else if (serviceType == "contour")
   {
+    std::cout<<"Contour: step= "<<step<<std::endl;
     std::string fieldName = vm["field"].as<std::string>();
     auto isoVals = vm["isovals"].as<std::vector<vtkm::FloatDefault>>();
+
+    vtkm::cont::PartitionedDataSet input2 = input;
+
+    if (!vm["cell_to_point"].empty())
+    {
+      vtkm::filter::field_conversion::PointAverage avg;
+      //avg.SetActiveField(fieldName, vtkm::cont::Field::Association::Cells);
+      avg.SetActiveField(fieldName);
+      fieldName = fieldName + "_point";
+      avg.SetOutputFieldName(fieldName);
+      input2 = avg.Execute(input2);
+    }
 
     vtkm::filter::contour::Contour contour;
     contour.SetGenerateNormals(false);
@@ -125,7 +140,7 @@ RunService(int step,
     vtkm::filter::FieldSelection selection(vtkm::filter::FieldSelection::Mode::All);
     contour.SetFieldsToPass(selection);
 
-    output = contour.Execute(input);
+    output = contour.Execute(input2);
   }
 
   return output;
@@ -274,6 +289,7 @@ RunBPSST(const boost::program_options::variables_map& vm)
   auto metaData = reader.ReadMetaData(paths);
   vtkm::Id totalNumSteps = metaData.Get<fides::metadata::Size>(fides::keys::NUMBER_OF_STEPS()).NumberOfItems;
 
+  std::cout<<"JSON= "<<jsonFile<<std::endl;
   for (vtkm::Id step = 0; step < totalNumSteps; step++)
   {
     std::cout<<"Step: "<<step<<std::endl;
@@ -282,11 +298,12 @@ RunBPSST(const boost::program_options::variables_map& vm)
     selections.Set(fides::keys::STEP_SELECTION(), fides::metadata::Index(step));
 
     auto input = reader.ReadDataSet(paths, selections);
-    //input.PrintSummary(std::cout);
-
     auto output = RunService(step, input, vm);
+    output.PrintSummary(std::cout);
 
-    writer.Write(output, outputEngineType);
+    std::cout<<__LINE__<<std::endl;
+    writer.Write(output, "SST"); //outputEngineType);
+    std::cout<<__LINE__<<std::endl;
   }
 //  reader.Close();
   writer.Close();
@@ -311,7 +328,20 @@ RunSSTBP(const boost::program_options::variables_map& vm)
     sleepTime = vm["sleep"].as<int>();
   }
 
-  fides::io::DataSetReader reader(jsonFile);
+  std::unique_ptr<fides::io::DataSetReader> FidesReader;
+  if (jsonFile.empty())
+  {
+      FidesReader = std::unique_ptr<fides::io::DataSetReader>(new fides::io::DataSetReader(inputFname, fides::io::DataSetReader::DataModelInput::BPFile));
+  }
+  else
+  {
+    if (inputEngineType == "BPFile")
+      FidesReader = std::unique_ptr<fides::io::DataSetReader>(new fides::io::DataSetReader(jsonFile));
+    else
+      FidesReader = std::unique_ptr<fides::io::DataSetReader>(new fides::io::DataSetReader(jsonFile, fides::io::DataSetReader::DataModelInput::JSONFile, true));
+  }
+
+  //fides::io::DataSetReader reader(jsonFile);
   fides::io::DataSetAppendWriter writer(outputFname);
 
   std::unordered_map<std::string, std::string> paths;
@@ -321,7 +351,9 @@ RunSSTBP(const boost::program_options::variables_map& vm)
   fides::metadata::MetaData selections;
 
   params["engine_type"] = inputEngineType;
-  reader.SetDataSourceParameters("source", params);
+  FidesReader->SetDataSourceParameters("source", params);
+
+  std::cout<<"JSONFile: "<<jsonFile<<std::endl;
 
   int step = 0;
   while (true)
@@ -330,7 +362,7 @@ RunSSTBP(const boost::program_options::variables_map& vm)
     if (sleepTime > 0)
       sleep(sleepTime);
 
-    auto status = reader.PrepareNextStep(paths);
+    auto status = FidesReader->PrepareNextStep(paths);
     if (status == fides::StepStatus::NotReady)
 	  {
   	  std::cout << "Not ready...." << std::endl;
@@ -342,10 +374,15 @@ RunSSTBP(const boost::program_options::variables_map& vm)
 	    break;
 	  }
 
-    auto input = reader.ReadDataSet(paths, selections);
+    std::cout<<__LINE__<<std::endl;
+    auto input = FidesReader->ReadDataSet(paths, selections);
+    std::cout<<__LINE__<<std::endl;
     //input.PrintSummary(std::cout);
 
+    std::cout<<__LINE__<<std::endl;
     auto output = RunService(step, input, vm);
+    std::cout<<__LINE__<<std::endl;
+
     writer.Write(output, outputEngineType);
     step++;
   }
@@ -682,6 +719,7 @@ int main(int argc, char** argv)
 
     //contour
     desc.add_options()
+      ("cell_to_point", "Average cell field to point")
       ("field", po::value<std::string>(), "field name in input data")
       ("isovals", po::value<std::vector<vtkm::FloatDefault>>(), "Isosurface values")
       ;
