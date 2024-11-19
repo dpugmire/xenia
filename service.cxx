@@ -353,7 +353,6 @@ RunService(int step,
   }
   else if (serviceType == "streamlines")
   {
-  std::cout<<__LINE__<<std::endl;
     vtkm::cont::PartitionedDataSet input2 = input;
 
     std::string fieldName;
@@ -371,10 +370,7 @@ RunService(int step,
       throw std::runtime_error(
         "Must provide either `--field` or `--fieldx`, `--fieldy`, and `--fieldz` arguments.");
     }
-std::cout<<__LINE__<<std::endl;
-
     auto seeds = GetSeeds(vm);
-std::cout<<__LINE__<<std::endl;
 
     vtkm::filter::flow::Streamline streamline;
     streamline.SetSeeds(seeds, vtkm::CopyFlag::Off);
@@ -896,20 +892,20 @@ RunIT(const boost::program_options::variables_map& vm)
     }
     else
     {
-      if (inputEngineType == "SST") std::cout<<"SST "<<__LINE__<<std::endl;          
+      if (inputEngineType == "SST") std::cout<<"SST "<<__LINE__<<std::endl;
       input = reader->ReadDataSet(paths, selections);
-      if (inputEngineType == "SST") std::cout<<"SST "<<__LINE__<<std::endl;          
+      if (inputEngineType == "SST") std::cout<<"SST "<<__LINE__<<std::endl;
     }
       
 
     
-    if (inputEngineType == "SST") std::cout<<"SST "<<__LINE__<<std::endl;              
+    if (inputEngineType == "SST") std::cout<<"SST "<<__LINE__<<std::endl;
     //std::cout<<"NUMDS: "<<input.GetNumberOfPartitions()<<std::endl;
     //auto ds = input.GetPartition(0);
     //std::cout<<" numCS: "<<ds.GetNumberOfCoordinateSystems()<<std::endl;
-    if (inputEngineType == "SST") std::cout<<"SST "<<__LINE__<<std::endl;              
+    if (inputEngineType == "SST") std::cout<<"SST "<<__LINE__<<std::endl;
     auto output = RunService(input, vm);
-    if (inputEngineType == "SST") std::cout<<"SST "<<__LINE__<<std::endl;              
+    if (inputEngineType == "SST") std::cout<<"SST "<<__LINE__<<std::endl;
     writer.Write(output, outputEngineType); //"BPFile");
 
     //fides::metadata::MetaData selections;
@@ -1051,7 +1047,6 @@ int main(int argc, char** argv)
     ("tube-size", po::value<vtkm::FloatDefault>(), "If specified, create tube geometry with the given radius.")
     ("tube-num-sides", po::value<vtkm::IdComponent>(), "Number of sides around tubes (if generated).");
 
-    std::cout<<__LINE__<<std::endl;
     //render
     desc.add_options()
     ("position", po::value<std::vector<float>>()->multitoken(), "Camera position")
@@ -1061,12 +1056,10 @@ int main(int argc, char** argv)
     ("clip", po::value<std::vector<float>>()->multitoken(), "Clipping range")
     ("imagesize", po::value<std::vector<int>>()->multitoken(), "Image size")
     ("scalar_range", po::value<std::vector<float>>()->multitoken(), "Scalar rendering range");
-    std::cout<<__LINE__<<std::endl;
 
   po::variables_map vm;
   po::store(po::parse_command_line(argc, argv, desc), vm);
   po::notify(vm);
-  std::cout<<__LINE__<<std::endl;
 
   if (vm.count("help"))
   {
