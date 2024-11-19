@@ -17,6 +17,20 @@
 #include <vtkm/filter/field_conversion/PointAverage.h>
 #include <vtkm/filter/field_conversion/CellAverage.h>
 
+#include <vtkm/rendering/Actor.h>
+#include <vtkm/rendering/CanvasRayTracer.h>
+#include <vtkm/rendering/MapperRayTracer.h>
+#include <vtkm/rendering/MapperVolume.h>
+#include <vtkm/rendering/MapperWireframer.h>
+#include <vtkm/rendering/Scene.h>
+#include <vtkm/rendering/View3D.h>
+#include <vtkm/filter/contour/Contour.h>
+
+using vtkm::rendering::CanvasRayTracer;
+using vtkm::rendering::MapperRayTracer;
+using vtkm::rendering::MapperVolume;
+using vtkm::rendering::MapperWireframer;
+
 static std::string
 CreateVisItFile(const std::string& outputFileName, int totalNumDS, int step)
 {
@@ -94,11 +108,100 @@ WriteVTK(const vtkm::cont::PartitionedDataSet& pds,
   return true;
 }
 
+std::string
+CreateOutputFileName(const std::string& fname, vtkm::Id step)
+{
+ if (fname.find('%') != std::string::npos)
+ {
+   char buffer[128];
+   snprintf(buffer, sizeof(buffer), fname.c_str(), step);
+   std::string outFname(buffer);
+   return outFname;
+ }
+ else
+   return fname;
+}
+
+vtkm::rendering::CanvasRayTracer
+MakeCanvas(const boost::program_options::variables_map& vm)
+{
+  vtkm::Vec<vtkm::Id,2> res(1024, 1024);
+
+  if (!vm["imagesize"].empty())
+  {
+    const auto& vals = vm["imagesize"].as<std::vector<int>>();
+    res[0] = static_cast<vtkm::Id>(vals[0]);
+    res[1] = static_cast<vtkm::Id>(vals[1]);
+  }
+
+  auto canvas =vtkm::rendering::CanvasRayTracer(res[0], res[1]);
+  return canvas;
+}
+
+vtkm::rendering::Camera
+MakeCamera(const boost::program_options::variables_map& vm)
+{
+  std::string outputFile = vm["output"].as<std::string>();
+
+  vtkm::rendering::Camera camera;
+  vtkm::Vec3f_32 position(1.5, 1.5, 1.5);
+  vtkm::Vec3f_32 lookAt(.5, .5, .5);
+  vtkm::Vec3f_32 up(0,1,0);
+  vtkm::FloatDefault fov = 60;
+  vtkm::Vec2f_32 clip(-1.0, 1.0);
+
+  if (!vm["position"].empty())
+  {
+    const auto& vals = vm["position"].as<std::vector<float>>();
+    for (std::size_t i = 0; i < 3; i++)
+      position[i] = vals[i];
+  }
+
+  if (!vm["lookat"].empty())
+  {
+    const auto& vals = vm["lookat"].as<std::vector<float>>();
+    for (int i = 0; i < 3; i++)
+      lookAt[i] = vals[i];
+  }
+  if (!vm["up"].empty())
+  {
+    const auto& vals = vm["up"].as<std::vector<float>>();
+    for (int i = 0; i < 3; i++)
+      up[i] = vals[i];
+  }
+  if (!vm["fov"].empty())
+  {
+    fov = vm["fov"].as<float>();
+  }
+  if (!vm["clip"].empty())
+  {
+    const auto& vals = vm["clip"].as<std::vector<vtkm::FloatDefault>>();
+    clip[0] = vals[0];
+    clip[1] = vals[1];
+  }
+
+/*
+  std::cout<<"Pos: "<<position<<std::endl;
+  std::cout<<"LookAt: "<<lookAt<<std::endl;
+  std::cout<<"Up: "<<up<<std::endl;
+  std::cout<<"Fov: "<<fov<<std::endl;
+  std::cout<<"clip "<<clip<<std::endl;
+*/
+  camera.SetPosition(position);
+  camera.SetLookAt(lookAt);
+  camera.SetViewUp(up);
+  camera.SetFieldOfView(fov);
+  camera.SetClippingRange(clip[0], clip[1]);
+
+  return camera;
+}
+
 static vtkm::cont::PartitionedDataSet
 RunService(int step,
            const vtkm::cont::PartitionedDataSet& input,
 	         const boost::program_options::variables_map& vm)
 {
+  std::cout<<__LINE__<<std::endl;
   auto serviceType = vm["service"].as<std::string>();
 
   vtkm::cont::PartitionedDataSet output;
@@ -141,6 +244,55 @@ RunService(int step,
     contour.SetFieldsToPass(selection);
 
     output = contour.Execute(input2);
+  }
+  else if (serviceType == "streamlines")
+  {
+
+  }
+  else if (serviceType == "render")
+  {
+    std::cout<<__LINE__<<std::endl;
+    input.PrintSummary(std::cout);
+    std::string outputFile = vm["output"].as<std::string>();
+
+    auto canvas = MakeCanvas(vm);
+    auto camera = MakeCamera(vm);
+    std::string fieldName = vm["field"].as<std::string>();
+
+    vtkm::cont::ColorTable colorTable("inferno");
+    vtkm::rendering::Color bg(0.2f, 0.2f, 0.2f, 1.0f);
+
+    vtkm::Range scalarRange(0.0, 1.0);
+    if (!vm["scalar_range"].empty())
+    {
+      const auto& vals = vm["scalar_range"].as<std::vector<float>>();
+      scalarRange.Min = vals[0];
+      scalarRange.Max = vals[1];
+    }
+    std::cout<<__LINE__<<std::endl;
+
+    vtkm::rendering::Scene scene;
+      for (const auto& ds : input)
+      {
+        vtkm::rendering::Actor actor(ds.GetCellSet(),
+                                    ds.GetCoordinateSystem(),
+                                    ds.GetField(fieldName),
+                                    colorTable);
+        actor.SetScalarRange(scalarRange);
+        scene.AddActor(actor);
+      }
+
+    std::cout<<__LINE__<<std::endl;
+    vtkm::rendering::View3D view(scene, vtkm::rendering::MapperRayTracer(), canvas, camera, bg);
+
+    view.Paint();
+    auto fname = CreateOutputFileName(outputFile, step);
+    std::cout<<"Render step: "<<step<<" to "<<fname<<std::endl;
+    view.SaveAs(fname);
+  }
+  else
+  {
+    throw std::runtime_error("Error: Unknown service " + serviceType);
   }
 
   return output;
@@ -250,7 +402,8 @@ RunBPBP(const boost::program_options::variables_map& vm)
 
     auto input = reader.ReadDataSet(paths, selections);
     auto output = RunService(step, input, vm);
-    writer.Write(output, outputEngineType);
+    if (output.GetNumberOfPartitions() > 0)
+      writer.Write(output, outputEngineType);
   }
 }
 
@@ -450,8 +603,12 @@ RunSSTSST(const boost::program_options::variables_map& vm)
 static void
 RunIT(const boost::program_options::variables_map& vm)
 {
-  std::string inputEngineType = vm["input_engine"].as<std::string>();
-  std::string outputEngineType = vm["output_engine"].as<std::string>();
+  std::string inputEngineType = "BPFile", outputEngineType = "BPFile";
+  if (!vm["input_engine"].empty())
+    inputEngineType = vm["input_engine"].as<std::string>();
+  if (!vm["output_engine"].empty())
+    outputEngineType = vm["output_engine"].as<std::string>();
+
   if (inputEngineType == "BPFile")
   {
     if (outputEngineType == "BPFile")
@@ -724,9 +881,35 @@ int main(int argc, char** argv)
       ("isovals", po::value<std::vector<vtkm::FloatDefault>>(), "Isosurface values")
       ;
 
+    //streamline
+    desc.add_options()
+    ("fieldx", po::value<std::string>(), "Name of x component of vector field in input data.")
+    ("fieldy", po::value<std::string>(), "Name of x component of vector field in input data.")
+    ("fieldz", po::value<std::string>(), "Name of x component of vector field in input data.")
+    ("seed-point,s", po::value<std::vector<std::string>>(), "Seed point location. Separate components with spaces or commas. Can be specified multiple times for multiple seeds.")
+    ("seed-grid-bounds", po::value<std::string>(), "Specify a the bounds for a grid of seed points. The values are specified as `minx maxx miny maxy minz maxz`.")
+    ("seed-grid-dims", po::value<std::string>(), "Specify the number of seed points in each dimension of the seed grid. The values are specified as `numx numy numz`.")
+    ("step-size", po::value<vtkm::FloatDefault>(), "Step size for particle advection.")
+    ("max-steps", po::value<vtkm::Id>(), "Maximum number of steps.")
+    ("tube-size", po::value<vtkm::FloatDefault>(), "If specified, create tube geometry with the given radius.")
+    ("tube-num-sides", po::value<vtkm::IdComponent>(), "Number of sides around tubes (if generated).");
+
+    std::cout<<__LINE__<<std::endl;
+    //render
+    desc.add_options()
+    ("position", po::value<std::vector<float>>()->multitoken(), "Camera position")
+    ("lookat", po::value<std::vector<float>>()->multitoken(), "Camera look at position")
+    ("up", po::value<std::vector<float>>()->multitoken(), "Camera up direction")
+    ("fov", po::value<float>(), "Camera up direction")
+    ("clip", po::value<std::vector<float>>()->multitoken(), "Clipping range")
+    ("imagesize", po::value<std::vector<int>>()->multitoken(), "Image size")
+    ("scalar_range", po::value<std::vector<float>>()->multitoken(), "Scalar rendering range");
+    std::cout<<__LINE__<<std::endl;
+
   po::variables_map vm;
   po::store(po::parse_command_line(argc, argv, desc), vm);
   po::notify(vm);
+  std::cout<<__LINE__<<std::endl;
 
   if (vm.count("help"))
   {
@@ -734,34 +917,19 @@ int main(int argc, char** argv)
     return 1;
   }
 
-
-
+  std::cout<<__LINE__<<std::endl;
   if (vm["service"].empty())
   {
     std::cout<<"Error. No service specified"<<std::endl;
     std::cout<<desc<<std::endl;
     return 1;
   }
+  std::cout<<__LINE__<<std::endl;
 
-  std::string serviceType = vm["service"].as<std::string>();
-  if (serviceType == "copier")
-  {
-  }
-  else if (serviceType == "converter")
-  {
-  }
-  else if (serviceType == "contour")
-  {
-  }
-  else
-  {
-    std::cout<<"Error: Unknown service "<<serviceType<<std::endl;
-    return 1;
-  }
+  //po::store(po::parse_command_line(argc, argv, desc), vm);
+  //po::notify(vm);
 
-  po::store(po::parse_command_line(argc, argv, desc), vm);
-  po::notify(vm);
-
+  std::cout<<__LINE__<<std::endl;
   RunIT(vm);
 
 
