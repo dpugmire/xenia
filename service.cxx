@@ -454,9 +454,8 @@ RunBPSST(const boost::program_options::variables_map& vm)
     auto output = RunService(step, input, vm);
     output.PrintSummary(std::cout);
 
-    std::cout<<__LINE__<<std::endl;
-    writer.Write(output, "SST"); //outputEngineType);
-    std::cout<<__LINE__<<std::endl;
+    if (output.GetNumberOfPartitions() > 0)
+      writer.Write(output, "SST"); //outputEngineType);
   }
 //  reader.Close();
   writer.Close();
@@ -527,16 +526,13 @@ RunSSTBP(const boost::program_options::variables_map& vm)
 	    break;
 	  }
 
-    std::cout<<__LINE__<<std::endl;
     auto input = FidesReader->ReadDataSet(paths, selections);
-    std::cout<<__LINE__<<std::endl;
     //input.PrintSummary(std::cout);
 
-    std::cout<<__LINE__<<std::endl;
     auto output = RunService(step, input, vm);
-    std::cout<<__LINE__<<std::endl;
 
-    writer.Write(output, outputEngineType);
+    if (output.GetNumberOfPartitions() > 0)
+      writer.Write(output, outputEngineType);
     step++;
   }
 }
@@ -595,7 +591,8 @@ RunSSTSST(const boost::program_options::variables_map& vm)
     //input.PrintSummary(std::cout);
 
     auto output = RunService(step, input, vm);
-    writer.Write(output, outputEngineType);
+    if (output.GetNumberOfPartitions() > 0)
+      writer.Write(output, outputEngineType);
     step++;
   }
 }
