@@ -26,6 +26,10 @@
 #include <vtkm/rendering/View3D.h>
 #include <vtkm/filter/contour/Contour.h>
 
+#include <vtkm/filter/field_transform/CompositeVectors.h>
+#include <vtkm/filter/flow/Streamline.h>
+#include <vtkm/filter/geometry_refinement/Tube.h>
+
 using vtkm::rendering::CanvasRayTracer;
 using vtkm::rendering::MapperRayTracer;
 using vtkm::rendering::MapperVolume;
@@ -196,12 +200,115 @@ MakeCamera(const boost::program_options::variables_map& vm)
   return camera;
 }
 
+
+template <typename T>
+static T GetParam(const boost::program_options::variables_map& vm, const char* param)
+{
+  if (vm[param].empty())
+    throw std::runtime_error("Command line parameter " + std::string(param) + " not provided");
+  return vm[param].as<T>();
+}
+
+template <typename T, vtkm::IdComponent N>
+static void String2Vec(const std::string& s, vtkm::Vec<T, N>& vec)
+{
+  constexpr const char* TOKENS = " ,";
+  std::string remaining = s;
+  for (vtkm::IdComponent cIndex = 0; cIndex < N; ++cIndex)
+  {
+    std::size_t pos = remaining.find_first_not_of(TOKENS);
+    if (pos == std::string::npos)
+    {
+      throw std::runtime_error("Cannot convert `" + s + "` to Vec with " + std::to_string(N) +
+                               "components.");
+    }
+    remaining = remaining.substr(pos);
+    vec[cIndex] = std::stof(remaining, &pos);
+    remaining = remaining.substr(pos);
+  }
+}
+
+template <typename T>
+static T String2Vec(const std::string& s)
+{
+  T vec;
+  String2Vec(s, vec);
+  return vec;
+}
+
+static const std::vector<std::string>& GetComponentFieldList(const boost::program_options::variables_map& vm)
+{
+  static std::vector<std::string> componentNames;
+
+  if (componentNames.empty())
+  {
+    componentNames.reserve(3);
+    for (const std::string& axisName : { "x", "y", "z" })
+    {
+      std::string argname = "field" + axisName;
+      if (!vm[argname].empty())
+      {
+        componentNames.push_back(vm[argname].as<std::string>());
+      }
+    }
+  }
+
+  return componentNames;
+}
+
+static const std::vector<vtkm::Particle>& GetSeeds(const boost::program_options::variables_map& vm)
+{
+  static std::vector<vtkm::Particle> particles;
+
+  if (particles.empty())
+  {
+    if (!vm["seed-grid-bounds"].empty())
+    {
+      auto b =
+        String2Vec<vtkm::Vec<vtkm::Float64, 6>>(vm["seed-grid-bounds"].as<std::string>());
+      vtkm::Bounds bounds{ b[0], b[1], b[2], b[3], b[4], b[5] };
+      vtkm::IdComponent3 dims{ 10, 10, 10 };
+      if (!vm["seed-grid-dims"].empty())
+      {
+        String2Vec(vm["seed-grid-dims"].as<std::string>(), dims);
+      }
+
+      particles.reserve(dims[0] * dims[1] * dims[2]);
+
+      auto minCorner = bounds.MinCorner();
+      auto spacing = (bounds.MaxCorner() - minCorner) / static_cast<vtkm::Vec3f_64>(dims);
+      for (vtkm::IdComponent zIndex = 0; zIndex < dims[2]; ++zIndex)
+        for (vtkm::IdComponent yIndex = 0; yIndex < dims[1]; ++yIndex)
+          for (vtkm::IdComponent xIndex = 0; xIndex < dims[0]; ++xIndex)
+            particles.emplace_back(vtkm::Vec3f_64(xIndex, yIndex, zIndex) * spacing + minCorner,
+                                   static_cast<vtkm::Id>(particles.size()));
+    }
+    if (vm.count("seed-point") > 0)
+      for (auto&& pos_string : vm["seed-point"].as<std::vector<std::string>>())
+      {
+        particles.emplace_back(String2Vec<vtkm::Vec3f>(pos_string),
+                               static_cast<vtkm::Id>(particles.size()));
+      }
+
+    // std::cout << "Seeds:\n";
+    // for (auto&& p : particles)
+    // {
+    //   auto pos = p.GetPosition();
+    //   std::cout << pos[0] << ", " << pos[1] << ", " << pos[2] << "\n";
+    // }
+
+    if (particles.empty())
+      throw std::runtime_error("No seed points specified.");
+  }
+
+  return particles;
+}
+
 static vtkm::cont::PartitionedDataSet
 RunService(int step,
            const vtkm::cont::PartitionedDataSet& input,
 	         const boost::program_options::variables_map& vm)
 {
-  std::cout<<__LINE__<<std::endl;
   auto serviceType = vm["service"].as<std::string>();
 
   vtkm::cont::PartitionedDataSet output;
@@ -217,11 +324,10 @@ RunService(int step,
   }
   else if (serviceType == "contour")
   {
+    vtkm::cont::PartitionedDataSet input2 = input;
     std::cout<<"Contour: step= "<<step<<std::endl;
     std::string fieldName = vm["field"].as<std::string>();
     auto isoVals = vm["isovals"].as<std::vector<vtkm::FloatDefault>>();
-
-    vtkm::cont::PartitionedDataSet input2 = input;
 
     if (!vm["cell_to_point"].empty())
     {
@@ -247,48 +353,102 @@ RunService(int step,
   }
   else if (serviceType == "streamlines")
   {
+  std::cout<<__LINE__<<std::endl;
+    vtkm::cont::PartitionedDataSet input2 = input;
 
+    std::string fieldName;
+    if (!vm["field"].empty())
+    {
+      fieldName = vm["field"].as<std::string>();
+    } else if (!vm["fieldx"].empty()) {
+      vtkm::filter::field_transform::CompositeVectors combineVec;
+      combineVec.SetFieldNameList(GetComponentFieldList(vm));
+      combineVec.SetOutputFieldName("_xenia_vec_");
+
+      input2 = combineVec.Execute(input);
+      fieldName = combineVec.GetOutputFieldName();
+    } else {
+      throw std::runtime_error(
+        "Must provide either `--field` or `--fieldx`, `--fieldy`, and `--fieldz` arguments.");
+    }
+std::cout<<__LINE__<<std::endl;
+
+    auto seeds = GetSeeds(vm);
+std::cout<<__LINE__<<std::endl;
+
+    vtkm::filter::flow::Streamline streamline;
+    streamline.SetSeeds(seeds, vtkm::CopyFlag::Off);
+    streamline.SetStepSize(GetParam<vtkm::FloatDefault>(vm, "step-size"));
+    streamline.SetNumberOfSteps(GetParam<vtkm::Id>(vm, "max-steps"));
+    streamline.SetActiveField(fieldName);
+
+    output = streamline.Execute(input2);
+
+    if (!vm["tube-size"].empty())
+    {
+      vtkm::filter::geometry_refinement::Tube tubes;
+      tubes.SetRadius(vm["tube-size"].as<vtkm::FloatDefault>());
+      if (!vm["tube-num-sides"].empty())
+        tubes.SetNumberOfSides(vm["tube-num-sides"].as<vtkm::IdComponent>());
+      output = tubes.Execute(output);
+
+      //Add field to tubes.
+      for (vtkm::Id i = 0; i < output.GetNumberOfPartitions(); i++)
+      {
+        auto ds = output.GetPartition(i);
+        vtkm::Id npts = ds.GetNumberOfPoints();
+        std::vector<vtkm::FloatDefault> scalars(npts, 1.0);
+        ds.AddPointField("scalar", scalars);
+        output.ReplacePartition(i, ds);
+      }
+
+    }
   }
   else if (serviceType == "render")
   {
-    std::cout<<__LINE__<<std::endl;
-    input.PrintSummary(std::cout);
     std::string outputFile = vm["output"].as<std::string>();
 
     auto canvas = MakeCanvas(vm);
     auto camera = MakeCamera(vm);
-    std::string fieldName = vm["field"].as<std::string>();
+    std::string fieldName = "";
+    if (!vm["field"].empty())
+      fieldName = vm["field"].as<std::string>();
 
-    vtkm::cont::ColorTable colorTable("inferno");
-    vtkm::rendering::Color bg(0.2f, 0.2f, 0.2f, 1.0f);
-
-    vtkm::Range scalarRange(0.0, 1.0);
-    if (!vm["scalar_range"].empty())
+    //use the raytracer.
+    if (!fieldName.empty())
     {
-      const auto& vals = vm["scalar_range"].as<std::vector<float>>();
-      scalarRange.Min = vals[0];
-      scalarRange.Max = vals[1];
-    }
-    std::cout<<__LINE__<<std::endl;
+      vtkm::cont::ColorTable colorTable("inferno");
+      vtkm::rendering::Color bg(0.2f, 0.2f, 0.2f, 1.0f);
 
-    vtkm::rendering::Scene scene;
-      for (const auto& ds : input)
+      vtkm::Range scalarRange(0.0, 1.0);
+      if (!vm["scalar_range"].empty())
       {
-        vtkm::rendering::Actor actor(ds.GetCellSet(),
-                                    ds.GetCoordinateSystem(),
-                                    ds.GetField(fieldName),
-                                    colorTable);
-        actor.SetScalarRange(scalarRange);
-        scene.AddActor(actor);
+        const auto& vals = vm["scalar_range"].as<std::vector<float>>();
+        scalarRange.Min = vals[0];
+        scalarRange.Max = vals[1];
       }
 
-    std::cout<<__LINE__<<std::endl;
-    vtkm::rendering::View3D view(scene, vtkm::rendering::MapperRayTracer(), canvas, camera, bg);
+      vtkm::rendering::Scene scene;
+        for (const auto& ds : input)
+        {
+          vtkm::rendering::Actor actor(ds.GetCellSet(),
+                                      ds.GetCoordinateSystem(),
+                                      ds.GetField(fieldName),
+                                      colorTable);
+          actor.SetScalarRange(scalarRange);
+          scene.AddActor(actor);
+        }
 
-    view.Paint();
-    auto fname = CreateOutputFileName(outputFile, step);
-    std::cout<<"Render step: "<<step<<" to "<<fname<<std::endl;
-    view.SaveAs(fname);
+      vtkm::rendering::View3D view(scene, vtkm::rendering::MapperRayTracer(), canvas, camera, bg);
+
+      view.Paint();
+      auto fname = CreateOutputFileName(outputFile, step);
+      std::cout<<"Render step: "<<step<<" to "<<fname<<std::endl;
+      view.SaveAs(fname);
+    }
+    else //wireframe mapper
+    {
+    }
   }
   else
   {
@@ -452,7 +612,7 @@ RunBPSST(const boost::program_options::variables_map& vm)
 
     auto input = reader.ReadDataSet(paths, selections);
     auto output = RunService(step, input, vm);
-    output.PrintSummary(std::cout);
+    //output.PrintSummary(std::cout);
 
     if (output.GetNumberOfPartitions() > 0)
       writer.Write(output, "SST"); //outputEngineType);
@@ -914,19 +1074,16 @@ int main(int argc, char** argv)
     return 1;
   }
 
-  std::cout<<__LINE__<<std::endl;
   if (vm["service"].empty())
   {
     std::cout<<"Error. No service specified"<<std::endl;
     std::cout<<desc<<std::endl;
     return 1;
   }
-  std::cout<<__LINE__<<std::endl;
 
   //po::store(po::parse_command_line(argc, argv, desc), vm);
   //po::notify(vm);
 
-  std::cout<<__LINE__<<std::endl;
   RunIT(vm);
 
 
