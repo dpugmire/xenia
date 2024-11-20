@@ -12,10 +12,15 @@ namespace xenia
 namespace utils
 {
 
-const std::set<std::string> DataSetReader::ValidEngineTypes({"BP5", "SST"});
+const std::set<std::string> DataSetReader::ValidEngineTypes({"BPFile", "SST"});
 
 DataSetReader::DataSetReader(const boost::program_options::variables_map& vm)
 {
+#ifdef ENABLE_MPI
+  MPI_Comm_rank(MPI_COMM_WORLD, &this->Rank);
+  MPI_Comm_size(MPI_COMM_WORLD, &this->NumRanks);
+#endif
+
   std::cout<<"building dataset reader."<<std::endl;
   if (!vm["file"].empty())
   {
@@ -39,16 +44,20 @@ DataSetReader::DataSetReader(const boost::program_options::variables_map& vm)
   if (vm.count("json") == 1)
   {
     this->JSONFile = vm["json"].as<std::string>();
-    if (this->EngineType == "BP5")
+    if (this->EngineType == "BPFile")
       this->FidesReader = std::unique_ptr<fides::io::DataSetReader>(new fides::io::DataSetReader(this->JSONFile));
     else if (this->EngineType == "SST")
-      this->FidesReader = std::unique_ptr<fides::io::DataSetReader>(new fides::io::DataSetReader(this->JSONFile, fides::io::DataSetReader::DataModelInput::JSONFile, true));
+      this->FidesReader = std::unique_ptr<fides::io::DataSetReader>(new fides::io::DataSetReader(this->JSONFile, fides::io::DataSetReader::DataModelInput::JSONFile, true)); //DRP difference
   }
   else
   {
     this->FidesReader = std::unique_ptr<fides::io::DataSetReader>(new fides::io::DataSetReader(this->FileName, fides::io::DataSetReader::DataModelInput::BPFile));
     //this->FidesReader = std::unique_ptr<fides::io::DataSetReader>(new fides::io::DataSetReader(this->FileName));
   }
+
+  fides::DataSourceParams params;
+  params["engine_type"] = this->EngineType;
+  this->FidesReader->SetDataSourceParameters("source", params);
 
   if (!vm["remove-ghost-cells"].empty())
   {
@@ -61,6 +70,7 @@ DataSetReader::DataSetReader(const boost::program_options::variables_map& vm)
 void
 DataSetReader::InitBlockSelection()
 {
+    if (this->Rank == 0) std::cout<<__LINE__<<" "<<__FILE__<<std::endl;
     this->BlockSelection.clear();
 
     int nBlocks = static_cast<int>(this->MetaData.Get<fides::metadata::Size>(fides::keys::NUMBER_OF_BLOCKS()).NumberOfItems);
@@ -69,6 +79,8 @@ DataSetReader::InitBlockSelection()
     // Default is to load everything.
     if (this->NumRanks == 1)
       return;
+
+    if (this->Rank == 0) std::cout<<__LINE__<<" "<<__FILE__<<std::endl;
 
     int nPer = nBlocks / this->NumRanks;
     int remainder = nBlocks % this->NumRanks;
@@ -94,7 +106,7 @@ DataSetReader::Init()
     this->InitBlockSelection();
 
   //For BPfile method...
-  if (this->EngineType == "BP5")
+  if (this->EngineType == "BPFile")
   {
     if (this->MetaData.Has(fides::keys::NUMBER_OF_STEPS()))
       this->NumSteps = this->MetaData.Get<fides::metadata::Size>(fides::keys::NUMBER_OF_STEPS()).NumberOfItems;
@@ -112,22 +124,13 @@ DataSetReader::Init()
 void
 DataSetReader::SetBlocksMetaData(fides::metadata::MetaData& md) const
 {
-  int rank = 0, numProcs = 1;
-#ifdef ENABLE_MPI
-  MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-  MPI_Comm_size(MPI_COMM_WORLD, &numProcs);
-#endif
-
   //Only needed for more than 1 rank.
-  if (numProcs == 1)
+  if (this->NumRanks == 1)
     return;
 
   std::size_t numBlocks = 0;
   if (this->MetaData.Has(fides::keys::NUMBER_OF_BLOCKS()))
     numBlocks = this->MetaData.Get<fides::metadata::Size>(fides::keys::NUMBER_OF_BLOCKS()).NumberOfItems;
-
-  if (numBlocks == 0)
-    return;
 }
 
 vtkm::cont::PartitionedDataSet DataSetReader::Read()
@@ -137,13 +140,17 @@ vtkm::cont::PartitionedDataSet DataSetReader::Read()
   if (this->EngineType == "BP5")
     md.Set(fides::keys::STEP_SELECTION(), fides::metadata::Index(this->Step));
 
-  this->SetBlocksMetaData(md);
+  //this->SetBlocksMetaData(md);
 
+  if (this->Rank == 0) std::cout<<__LINE__<<" "<<__FILE__<<std::endl;
   if (!this->BlockSelection.empty())
   {
+    if (this->Rank == 0) std::cout<<__LINE__<<" "<<__FILE__<<std::endl;
+    if (this->Rank == 0) std::cout<<"block sel: "<<this->BlockSelection.size()<<std::endl;
     fides::metadata::Vector<std::size_t> blockSel(this->BlockSelection);
     md.Set(fides::keys::BLOCK_SELECTION(), blockSel);
   }
+  if (this->Rank == 0) std::cout<<__LINE__<<" "<<__FILE__<<std::endl;
 
   auto output = this->FidesReader->ReadDataSet(this->Paths, md);
   if (this->RemoveGhostCells)

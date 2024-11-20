@@ -87,12 +87,12 @@ WriteVTK(const vtkm::cont::PartitionedDataSet& pds,
          int step,
          const boost::program_options::variables_map& vm)
 {
-  std::cout<<"WriteVTK: step= "<<step<<std::endl;
   std::string outputFileName = vm["vtkfile"].as<std::string>();
 
   int localNumDS = static_cast<int>(pds.GetNumberOfPartitions());
   int totalNumDS = localNumDS;
   int b0 = 0, b1 = localNumDS;
+  std::cout<<"WriteVTK: step= "<<step<<" "<<totalNumDS<<std::endl;
 
   if (totalNumDS == 0)
       return false;
@@ -100,6 +100,7 @@ WriteVTK(const vtkm::cont::PartitionedDataSet& pds,
   auto visitFileName = CreateVisItFile(outputFileName, totalNumDS, step);
   auto outputFileNames = GetVTKOutputFileNames(outputFileName, step, totalNumDS, 0, totalNumDS);
   AppendVTKFiles(visitFileName, outputFileNames);
+  std::cout<<"----WRITE "<<step<<" "<<visitFileName<<" "<<outputFileName[0]<<std::endl;
 
   int blkIdx = 0;
   for (const auto& ds : pds.GetPartitions())
@@ -314,7 +315,7 @@ RunService(int step,
   vtkm::cont::PartitionedDataSet output;
   if (serviceType == "copier")
   {
-    std::cout<<"Copier: step= "<<step<<std::endl;
+    std::cout<<"Timestep= "<<step<<std::endl<<std::endl;
     output = input;
   }
   else if (serviceType == "converter")
@@ -331,14 +332,25 @@ RunService(int step,
 
     if (!vm["cell_to_point"].empty())
     {
-      vtkm::filter::field_conversion::PointAverage avg;
-      //avg.SetActiveField(fieldName, vtkm::cont::Field::Association::Cells);
-      avg.SetActiveField(fieldName);
-      fieldName = fieldName + "_point";
-      avg.SetOutputFieldName(fieldName);
-      input2 = avg.Execute(input2);
+      vtkm::Id numDS = input2.GetNumberOfPartitions();
+      for (vtkm::Id i = 0; i < numDS; i++)
+      {
+        auto ds = input2.GetPartition(i);
+        auto numFields = ds.GetNumberOfFields();
+        for (vtkm::IdComponent j = 0; j < numFields; j++)
+        {
+          auto field = ds.GetField(j);
+          if (field.IsCellField())
+          {
+            vtkm::filter::field_conversion::PointAverage avg;
+            avg.SetActiveField(field.GetName());
+            avg.SetOutputFieldName(field.GetName()+"_point");
+            ds = avg.Execute(ds);
+          }
+        }
+        input2.ReplacePartition(i, ds);
+      }
     }
-
     vtkm::filter::contour::Contour contour;
     contour.SetGenerateNormals(false);
 
@@ -379,6 +391,20 @@ RunService(int step,
     streamline.SetActiveField(fieldName);
 
     output = streamline.Execute(input2);
+    for (vtkm::Id i = 0; i < output.GetNumberOfPartitions(); i++)
+    {
+      auto ds = output.GetPartition(i);
+      auto numCells = ds.GetNumberOfPoints(); //Cells();
+      std::vector<vtkm::FloatDefault> ids;
+      ids.reserve(numCells);
+      for (int id = 0; id < numCells; id++)
+      {
+        vtkm::FloatDefault idVal = static_cast<vtkm::FloatDefault>(id) / static_cast<vtkm::FloatDefault>(numCells);
+        ids.push_back(idVal);
+      }
+      ds.AddPointField("IDs", ids);
+      output.ReplacePartition(i, ds);
+    }
 
     if (!vm["tube-size"].empty())
     {
@@ -386,6 +412,8 @@ RunService(int step,
       tubes.SetRadius(vm["tube-size"].as<vtkm::FloatDefault>());
       if (!vm["tube-num-sides"].empty())
         tubes.SetNumberOfSides(vm["tube-num-sides"].as<vtkm::IdComponent>());
+      vtkm::filter::FieldSelection selection(vtkm::filter::FieldSelection::Mode::All);
+      tubes.SetFieldsToPass(selection);
       output = tubes.Execute(output);
 
       //Add field to tubes.
@@ -397,7 +425,6 @@ RunService(int step,
         ds.AddPointField("scalar", scalars);
         output.ReplacePartition(i, ds);
       }
-
     }
   }
   else if (serviceType == "render")
@@ -413,7 +440,7 @@ RunService(int step,
     //use the raytracer.
     if (!fieldName.empty())
     {
-      vtkm::cont::ColorTable colorTable("inferno");
+      vtkm::cont::ColorTable colorTable("Cool to Warm"); //("inferno");
       vtkm::rendering::Color bg(0.2f, 0.2f, 0.2f, 1.0f);
 
       vtkm::Range scalarRange(0.0, 1.0);
@@ -436,6 +463,8 @@ RunService(int step,
         }
 
       vtkm::rendering::View3D view(scene, vtkm::rendering::MapperRayTracer(), canvas, camera, bg);
+      view.SetWorldAnnotationsEnabled(false);
+      view.SetRenderAnnotationsEnabled(false);
 
       view.Paint();
       auto fname = CreateOutputFileName(outputFile, step);
@@ -552,11 +581,13 @@ RunBPBP(const boost::program_options::variables_map& vm)
   {
     if (sleepTime > 0)
       sleep(sleepTime);
-    std::cout<<"Step: "<<step<<std::endl;
+    std::cout<<"Step: "<<step<<" of "<<totalNumSteps<<std::endl;
 
     selections.Set(fides::keys::STEP_SELECTION(), fides::metadata::Index(step));
 
     auto input = reader.ReadDataSet(paths, selections);
+    if (input.GetNumberOfPartitions() == 0)
+      continue;
     auto output = RunService(step, input, vm);
     if (output.GetNumberOfPartitions() > 0)
       writer.Write(output, outputEngineType);

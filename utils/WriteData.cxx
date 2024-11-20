@@ -32,7 +32,7 @@ DataSetWriter::DataSetWriter(const boost::program_options::variables_map& vm)
             auto engine = vm["output_engine"].as<std::string>();
             if (engine == "SST")
                 this->OutputType = OutputFileType::SST;
-            else if (engine == "BP")
+            else if (engine == "BPFile")
                 this->OutputType = OutputFileType::BP;
             else
                 throw std::runtime_error("Error. Unknown engine type: " + engine);
@@ -67,34 +67,35 @@ DataSetWriter::Close()
         this->Writer->Close();
 }
 
-void DataSetWriter::CreateVisItFile(int totalNumDS) const
+void DataSetWriter::CreateVisItFile(int totalNumDS)
+{
+    if (this->Rank != 0 || this->Step > 0)
+        return;
+
+    auto pos = this->OutputFileName.find(".vtk");
+    this->VisItFileName = this->OutputFileName;
+    std::string pattern(".visit");
+    this->VisItFileName.replace(pos, pattern.size(), pattern);
+
+    std::ofstream fout(this->VisItFileName);
+    fout<<"!NBLOCKS "<<totalNumDS<<std::endl;
+    fout.close();
+}
+
+void DataSetWriter::AppendVTKFiles(int totalNumDS) const
 {
     if (this->Rank != 0)
         return;
 
-    auto pos = this->OutputFileName.find(".vtk");
-    std::string visitFile = this->OutputFileName;
-    std::string pattern(".%d.visit");
-    visitFile.replace(pos, pattern.size(), pattern);
+    auto fileNames = this->GetVTKOutputFileNames(totalNumDS, 0, totalNumDS);
 
-    int timestep = static_cast<int>(this->Step);
-    char buffer[128];
-    snprintf(buffer, sizeof(buffer), visitFile.c_str(), timestep);
+    auto fout = std::ofstream(this->VisItFileName, std::ios::app);
+    for (const auto& fileName : fileNames)
+        fout<<fileName<<std::endl;
 
-    std::cout<<"visitFile: "<<buffer<<std::endl;
-    std::ofstream fout(buffer, std::ofstream::out);
-
-    auto tmp = this->OutputFileName;
-    pattern = ".ts_%d_ds_%d.vtk";
-    tmp.replace(pos, pattern.size(), pattern);
-    fout<<"!NBLOCKS "<<totalNumDS<<std::endl;
-    for (int i = 0; i < totalNumDS; i++)
-    {
-        snprintf(buffer, sizeof(buffer), tmp.c_str(), timestep, i);
-        fout<<buffer<<std::endl;
-        std::cout<<"  "<<buffer<<std::endl;
-    }
+    fout.close();
 }
+
 
 std::vector<std::string> DataSetWriter::GetVTKOutputFileNames(int totalNumDS, int blk0, int blk1) const
 {
@@ -142,6 +143,7 @@ bool DataSetWriter::WriteVTK(const vtkm::cont::PartitionedDataSet& pds)
         return false;
 
     this->CreateVisItFile(totalNumDS);
+    this->AppendVTKFiles(totalNumDS);
     auto outputFileNames = this->GetVTKOutputFileNames(totalNumDS, b0, b1);
 
     int blkIdx = 0;
@@ -163,6 +165,6 @@ bool DataSetWriter::WriteBP(const vtkm::cont::PartitionedDataSet& pds)
     this->Writer->Write(pds, "BPFile");
     return true;
 }
-  
+
 }
 } //xenia::utils

@@ -47,6 +47,12 @@ class DataSetReader
   {
     auto selections = this->MetaData;
     selections.Set(fides::keys::STEP_SELECTION(), fides::metadata::Index(step));
+    //change this to set it on MetaData once.
+    if (!this->BlockSelection.empty())
+    {
+      fides::metadata::Vector<std::size_t> blockSel(this->BlockSelection);
+      selections.Set(fides::keys::BLOCK_SELECTION(), blockSel);
+    }
     auto output = this->FidesReader->ReadDataSet(this->Paths, selections);
 
     if (this->RemoveGhostCells)
@@ -80,7 +86,7 @@ private:
   std::vector<std::size_t> BlockSelection;
   std::string JSONFile = "";
   std::string FileName = "";
-  std::string EngineType = "BP5";
+  std::string EngineType = "BPFile";
   bool InitCalled = false;
   vtkm::Id NumSteps = 0;
 

@@ -78,8 +78,10 @@ class DataSetWriter
   bool WriteBP(const vtkm::cont::PartitionedDataSet& pds);
 
   private:
-  void CreateVisItFile(int totalNumDS) const;
+  void CreateVisItFile(int totalNumDS);
+  void AppendVTKFiles(int totalNumDS) const;
   std::vector<std::string> GetVTKOutputFileNames(int totalNumDS, int blk0, int blk1) const;
+  std::string VisItFileName;
 
   OutputFileType OutputType = OutputFileType::NONE;
   std::string OutputFileName;
